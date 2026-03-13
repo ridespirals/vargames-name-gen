@@ -1,0 +1,25 @@
+info:
+  name: auth
+  type: http
+  seq: 1
+
+http:
+  method: POST
+  url: https://id.twitch.tv/oauth2/token?client_id={{client_id}}&client_secret={{client_secret}}&grant_type=client_credentials
+  params:
+    - name: client_id
+      value: "{{client_id}}"
+      type: query
+    - name: client_secret
+      value: "{{client_secret}}"
+      type: query
+    - name: grant_type
+      value: client_credentials
+      type: query
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

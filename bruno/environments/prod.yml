@@ -1,0 +1,6 @@
+name: prod
+variables:
+  - secret: true
+    name: client_id
+  - secret: true
+    name: client_secret
