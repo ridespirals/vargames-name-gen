@@ -4,3 +4,7 @@ variables:
     name: client_id
   - secret: true
     name: client_secret
+  - secret: true
+    name: access_token
+  - name: base_url
+    value: https://api.igdb.com/v4
