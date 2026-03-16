@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"vargames-name-gen/src/config"
 	"vargames-name-gen/src/igdb"
@@ -33,6 +34,8 @@ func main() {
 			log.Fatalf("unknown entity %q; valid: games, characters, genres, platforms, collections, companies, alternative_names", *fetchEntity)
 		}
 		entity := igdb.Entity(*fetchEntity)
+		metrics := igdb.NewMetrics(*fetchEntity)
+		client = igdb.NewClient(cfg, igdb.WithLogger(logger), igdb.WithMetrics(metrics))
 		fetcher := igdb.NewFetcher(client, entity, igdb.FetcherOptions{
 			Limit:         0, // use config MaxLimit
 			MaxPages:      500,
@@ -40,7 +43,9 @@ func main() {
 			Logger:        logger,
 		})
 		ctx := context.Background()
+		start := time.Now()
 		results, err := fetcher.FetchAll(ctx)
+		wallClock := time.Since(start)
 		if err != nil {
 			log.Fatalf("fetch %s: %v", entity, err)
 		}
@@ -54,6 +59,12 @@ func main() {
 		}
 		if err := os.WriteFile(outPath, raw, 0644); err != nil {
 			log.Fatalf("write %s: %v", outPath, err)
+		}
+		reportPath := filepath.Join(dataDir, *fetchEntity+"-report.html")
+		if err := writeFetchReport(metrics, wallClock, len(results), reportPath); err != nil {
+			log.Printf("warning: could not write report: %v", err)
+		} else {
+			log.Printf("report written to %s", reportPath)
 		}
 		log.Printf("wrote %d items to %s", len(results), outPath)
 		return

@@ -38,6 +38,7 @@ type Client struct {
 	maxBackoff       time.Duration
 	maxRetryDuration time.Duration // max total time in backoff before giving up
 	log              Logger
+	metrics          *Metrics
 }
 
 // ClientOption configures a Client.
@@ -64,6 +65,11 @@ func WithMaxRetryDuration(d time.Duration) ClientOption {
 // WithLogger sets an optional logger for progress and retry messages.
 func WithLogger(l Logger) ClientOption {
 	return func(c *Client) { c.log = l }
+}
+
+// WithMetrics sets an optional metrics collector for request/retry stats.
+func WithMetrics(m *Metrics) ClientOption {
+	return func(c *Client) { c.metrics = m }
 }
 
 // NewClient builds an IGDB client from config. Optional opts customize retries/backoff.
@@ -165,17 +171,23 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 // Retries use exponential backoff (double each time, capped at maxBackoff). Retrying stops when
 // max retries are reached or when total time spent in backoff would exceed maxRetryDuration.
 func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+	start := time.Now()
 	var lastErr error
 	backoff := c.minBackoff
 	deadline := time.Now().Add(c.maxRetryDuration)
 	if c.maxRetryDuration <= 0 {
 		deadline = time.Time{} // no deadline
 	}
+	attemptsUsed := 0
 	for attempt := 0; attempt <= c.retries; attempt++ {
+		attemptsUsed = attempt
 		resp, err := c.doPost(ctx, endpoint, body)
 		if err != nil {
 			lastErr = err
 			if !isRetriable(err) || attempt == c.retries {
+				if c.metrics != nil {
+					c.metrics.RecordPost(endpoint, attempt, time.Since(start))
+				}
 				return nil, lastErr
 			}
 			// Cap sleep so we don't exceed max retry duration
@@ -185,6 +197,9 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 				if remaining <= 0 {
 					if c.log != nil {
 						c.log.Logf("igdb %s: giving up after max retry duration", endpoint)
+					}
+					if c.metrics != nil {
+						c.metrics.RecordPost(endpoint, attempt+1, time.Since(start))
 					}
 					return nil, lastErr
 				}
@@ -201,7 +216,13 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 			}
 			continue
 		}
+		if c.metrics != nil {
+			c.metrics.RecordPost(endpoint, attempt, time.Since(start))
+		}
 		return resp, nil
+	}
+	if c.metrics != nil {
+		c.metrics.RecordPost(endpoint, attemptsUsed, time.Since(start))
 	}
 	return nil, lastErr
 }
