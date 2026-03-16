@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -16,6 +17,12 @@ type Config struct {
 	ClientSecret string
 	// BaseURL is the IGDB API base URL (default: https://api.igdb.com/v4).
 	BaseURL string
+	// AccessToken is an optional pre-generated IGDB access token.
+	// Most callers should prefer using client credentials flow instead.
+	AccessToken string
+	// MaxLimit is the default maximum "limit" to use in IGDB queries.
+	// This corresponds to the Bruno prod environment `max_limit` (default 500).
+	MaxLimit int
 }
 
 // Env variable names. Use these when setting up your environment.
@@ -23,10 +30,16 @@ const (
 	EnvClientID     = "IGDB_CLIENT_ID"
 	EnvClientSecret = "IGDB_CLIENT_SECRET"
 	EnvBaseURL      = "IGDB_BASE_URL"
+	EnvAccessToken  = "IGDB_ACCESS_TOKEN"
+	EnvMaxLimit     = "IGDB_MAX_LIMIT"
 )
 
 // DefaultBaseURL is the default IGDB API base URL.
 const DefaultBaseURL = "https://api.igdb.com/v4"
+
+// DefaultMaxLimit is the default IGDB "limit" used when none is provided.
+// Mirrors bruno prod environment's max_limit value.
+const DefaultMaxLimit = 500
 
 // LoadEnv reads a .env file from the current working directory and sets
 // environment variables for each KEY=VALUE line. Variables already set
@@ -96,9 +109,19 @@ func Load() (Config, error) {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
+	accessToken := os.Getenv(EnvAccessToken)
+	maxLimitStr := os.Getenv(EnvMaxLimit)
+	maxLimit := DefaultMaxLimit
+	if maxLimitStr != "" {
+		if v, err := strconv.Atoi(maxLimitStr); err == nil && v > 0 {
+			maxLimit = v
+		}
+	}
 	return Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		BaseURL:      baseURL,
+		AccessToken:  accessToken,
+		MaxLimit:     maxLimit,
 	}, nil
 }
