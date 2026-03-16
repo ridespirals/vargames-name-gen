@@ -15,7 +15,10 @@ http:
       value: fields *;
   body:
     type: text
-    data: fields *;
+    data: |-
+      fields *, game.name;
+      offset 195856;
+      limit 5;
   auth: inherit
 
 settings:
