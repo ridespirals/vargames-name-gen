@@ -8,3 +8,5 @@ variables:
     name: access_token
   - name: base_url
     value: https://api.igdb.com/v4
+  - name: max_limit
+    value: "500"

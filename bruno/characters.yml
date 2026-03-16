@@ -1,0 +1,25 @@
+info:
+  name: characters
+  type: http
+  seq: 6
+
+http:
+  method: POST
+  url: "{{base_url}}/characters"
+  headers:
+    - name: Client-Id
+      value: "{{client_id}}"
+    - name: Authorization
+      value: Bearer {{access_token}}
+    - name: Body
+      value: fields *;
+  body:
+    type: text
+    data: fields *;
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

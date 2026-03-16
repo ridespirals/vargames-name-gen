@@ -1,0 +1,27 @@
+info:
+  name: platforms
+  type: http
+  seq: 4
+
+http:
+  method: POST
+  url: "{{base_url}}/platforms"
+  headers:
+    - name: Client-Id
+      value: "{{client_id}}"
+    - name: Authorization
+      value: Bearer {{access_token}}
+    - name: Body
+      value: fields *;
+  body:
+    type: text
+    data: |-
+      fields *;
+      search "Playstation";
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
