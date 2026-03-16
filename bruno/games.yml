@@ -15,7 +15,8 @@ http:
       value: fields *;
   body:
     type: text
-    data: fields *;
+    data: |
+      fields *, release_dates.*, release_dates.platform.*, release_dates.platform.versions.*;
   auth: inherit
 
 settings:
