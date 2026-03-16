@@ -19,7 +19,7 @@ const (
 	// DefaultMaxRetries is the number of retries for transient failures (fetchers: wait as long as practical).
 	DefaultMaxRetries = 10
 	// DefaultRetryMinBackoff is the initial backoff after a retriable error.
-	DefaultRetryMinBackoff = 1 * time.Second
+	DefaultRetryMinBackoff = 2 * time.Second
 	// DefaultRetryMaxBackoff caps backoff between retries.
 	DefaultRetryMaxBackoff = 5 * time.Minute
 	// DefaultMaxRetryDuration is the maximum total time spent in backoff before giving up.

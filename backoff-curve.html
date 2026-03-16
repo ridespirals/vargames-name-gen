@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>IGDB client retry backoff curve</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 2rem; background: #1a1a1a; color: #e0e0e0; }
+    h1 { font-size: 1.25rem; margin-bottom: 0.5rem; }
+    .meta { font-size: 0.875rem; color: #888; margin-bottom: 1.5rem; }
+    svg { display: block; }
+    .bar { fill: #4a9eff; }
+    .bar:hover { fill: #6eb3ff; }
+    .grid { stroke: #333; stroke-width: 0.5; }
+    .axis { stroke: #666; stroke-width: 1; }
+    .label { fill: #888; font-size: 11px; }
+    .value { fill: #e0e0e0; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>Retry backoff curve</h1>
+  <p class="meta">Min 4s, max 5min, exponential (×2 each attempt). Cap at 5min. Max 10 retries, 1h total backoff limit.</p>
+  <svg id="chart" width="720" height="360" viewBox="0 0 720 360"></svg>
+  <script>
+    const minBackoffSec = 2;
+    const maxBackoffSec = 5 * 60;
+    const maxRetries = 10;
+    const points = [];
+    let backoff = minBackoffSec;
+    for (let i = 0; i <= maxRetries; i++) {
+      const wait = Math.min(backoff, maxBackoffSec);
+      points.push({ attempt: i, waitSec: wait, label: formatDur(wait) });
+      backoff *= 2;
+    }
+    function formatDur(sec) {
+      if (sec >= 60) return (sec / 60).toFixed(1) + ' min';
+      return sec + ' s';
+    }
+    const margin = { top: 20, right: 20, bottom: 40, left: 70 };
+    const w = 720 - margin.left - margin.right;
+    const h = 360 - margin.top - margin.bottom;
+    const maxY = Math.max(...points.map(p => p.waitSec));
+    const x = i => margin.left + (i / maxRetries) * w;
+    const y = v => margin.top + h - (v / maxY) * h;
+    const svg = document.getElementById('chart');
+    function line(s, e) { return `M ${s.x} ${s.y} L ${e.x} ${e.y}`; }
+    // Grid
+    for (let i = 1; i < 5; i++) {
+      const yy = y((maxY * i) / 4);
+      svg.insertAdjacentHTML('beforeend', `<line class="grid" x1="${margin.left}" y1="${yy}" x2="${margin.left + w}" y2="${yy}"/>`);
+    }
+    for (let i = 1; i < maxRetries; i++) {
+      const xx = x(i);
+      svg.insertAdjacentHTML('beforeend', `<line class="grid" x1="${xx}" y1="${margin.top}" x2="${xx}" y2="${margin.top + h}"/>`);
+    }
+    // Axes
+    svg.insertAdjacentHTML('beforeend', `<line class="axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${margin.top + h}"/>`);
+    svg.insertAdjacentHTML('beforeend', `<line class="axis" x1="${margin.left}" y1="${margin.top + h}" x2="${margin.left + w}" y2="${margin.top + h}"/>`);
+    // Y labels
+    [0, 0.25, 0.5, 0.75, 1].forEach((p, i) => {
+      const sec = (maxY * p);
+      svg.insertAdjacentHTML('beforeend', `<text class="label" x="${margin.left - 8}" y="${y(sec) + 4}" text-anchor="end">${formatDur(sec)}</text>`);
+    });
+    // X labels
+    points.forEach((p, i) => {
+      svg.insertAdjacentHTML('beforeend', `<text class="label" x="${x(i)}" y="${margin.top + h + 20}" text-anchor="middle">${p.attempt}</text>`);
+    });
+    // Title labels
+    svg.insertAdjacentHTML('beforeend', `<text class="label" x="${margin.left + w / 2}" y="${360 - 8}" text-anchor="middle">Retry attempt</text>`);
+    svg.insertAdjacentHTML('beforeend', `<text class="label" x="${12}" y="${margin.top + h / 2}" text-anchor="middle" transform="rotate(-90, 12, ${margin.top + h / 2})">Backoff (wait time)</text>`);
+    // Bars
+    const barW = Math.max(4, w / (maxRetries + 1) - 4);
+    points.forEach((p, i) => {
+      const xx = x(i) - barW / 2;
+      const yy = y(p.waitSec);
+      const bh = margin.top + h - yy;
+      const title = `Attempt ${p.attempt}: wait ${p.label}`;
+      svg.insertAdjacentHTML('beforeend', `<rect class="bar" x="${xx}" y="${yy}" width="${barW}" height="${bh}" title="${title}"/>`);
+      svg.insertAdjacentHTML('beforeend', `<text class="value" x="${xx + barW / 2}" y="${yy - 6}" text-anchor="middle">${p.label}</text>`);
+    });
+  </script>
+</body>
+</html>
