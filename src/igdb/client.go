@@ -26,14 +26,15 @@ const (
 
 // Client performs authenticated requests to the IGDB API with retry logic.
 type Client struct {
-	cfg     config.Config
-	http    *http.Client
-	mu      sync.Mutex
-	token   string
-	expiry  time.Time
-	retries int
+	cfg        config.Config
+	http       *http.Client
+	mu         sync.Mutex
+	token      string
+	expiry     time.Time
+	retries    int
 	minBackoff time.Duration
 	maxBackoff time.Duration
+	log        Logger
 }
 
 // ClientOption configures a Client.
@@ -50,6 +51,11 @@ func WithBackoff(min, max time.Duration) ClientOption {
 		c.minBackoff = min
 		c.maxBackoff = max
 	}
+}
+
+// WithLogger sets an optional logger for progress and retry messages.
+func WithLogger(l Logger) ClientOption {
+	return func(c *Client) { c.log = l }
 }
 
 // NewClient builds an IGDB client from config. Optional opts customize retries/backoff.
@@ -94,6 +100,9 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	}
 	c.mu.Unlock()
 
+	if c.log != nil {
+		c.log.Logf("token: refreshing from Twitch")
+	}
 	u, err := url.Parse(twitchTokenURL)
 	if err != nil {
 		return "", fmt.Errorf("parse token url: %w", err)
@@ -137,6 +146,9 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	c.token = token
 	c.expiry = expiry
 	c.mu.Unlock()
+	if c.log != nil {
+		c.log.Logf("token: refreshed, expires in %ds", tr.ExpiresIn)
+	}
 	return token, nil
 }
 
@@ -149,6 +161,9 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 		resp, err := c.doPost(ctx, endpoint, body)
 		if err != nil {
 			lastErr = err
+			if c.log != nil && isRetriable(err) && attempt < c.retries {
+				c.log.Logf("igdb %s: retry %d/%d after error: %v", endpoint, attempt+1, c.retries, err)
+			}
 			if !isRetriable(err) || attempt == c.retries {
 				return nil, lastErr
 			}
@@ -192,6 +207,9 @@ func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]by
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("igdb %s: status %d: %s", endpoint, resp.StatusCode, string(out))
+	}
+	if c.log != nil {
+		c.log.Logf("igdb %s: OK %d bytes", endpoint, len(out))
 	}
 	return out, nil
 }

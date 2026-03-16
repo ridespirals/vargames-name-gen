@@ -23,6 +23,9 @@ type Config struct {
 	// MaxLimit is the default maximum "limit" to use in IGDB queries.
 	// This corresponds to the Bruno prod environment `max_limit` (default 500).
 	MaxLimit int
+	// Verbose enables progress logging for IGDB client and fetchers when true.
+	// Set via IGDB_VERBOSE or VARGAMES_VERBOSE (1, true, on), or -verbose flag.
+	Verbose bool
 }
 
 // Env variable names. Use these when setting up your environment.
@@ -32,6 +35,8 @@ const (
 	EnvBaseURL      = "IGDB_BASE_URL"
 	EnvAccessToken  = "IGDB_ACCESS_TOKEN"
 	EnvMaxLimit     = "IGDB_MAX_LIMIT"
+	EnvVerbose     = "IGDB_VERBOSE"
+	EnvVerboseAlt  = "VARGAMES_VERBOSE"
 )
 
 // DefaultBaseURL is the default IGDB API base URL.
@@ -117,11 +122,22 @@ func Load() (Config, error) {
 			maxLimit = v
 		}
 	}
+	verbose := parseVerbose(os.Getenv(EnvVerbose)) || parseVerbose(os.Getenv(EnvVerboseAlt))
 	return Config{
 		ClientID:     clientID,
 		ClientSecret: clientSecret,
 		BaseURL:      baseURL,
 		AccessToken:  accessToken,
 		MaxLimit:     maxLimit,
+		Verbose:      verbose,
 	}, nil
+}
+
+// parseVerbose returns true for 1, true, on (case-insensitive).
+func parseVerbose(s string) bool {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "1", "true", "on", "yes":
+		return true
+	}
+	return false
 }

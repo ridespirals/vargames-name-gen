@@ -16,6 +16,8 @@ type FetcherOptions struct {
 	MaxPages int
 	// MaxConcurrent limits concurrent page requests (0 = use default).
 	MaxConcurrent int
+	// Logger is optional; when set, progress (pages completed, total items) is logged.
+	Logger Logger
 }
 
 const (
@@ -25,11 +27,12 @@ const (
 
 // Fetcher fetches all pages for an IGDB entity in parallel and combines results.
 type Fetcher struct {
-	client *Client
-	entity Entity
-	limit  int
+	client   *Client
+	entity   Entity
+	limit    int
 	maxPages int
-	sem    chan struct{} // semaphore for concurrency
+	sem      chan struct{}
+	log      Logger
 }
 
 // NewFetcher creates a fetcher for the given entity using the client's config for limit when not set in opts.
@@ -55,15 +58,20 @@ func NewFetcher(client *Client, entity Entity, opts FetcherOptions) *Fetcher {
 		limit:    limit,
 		maxPages: maxPages,
 		sem:      make(chan struct{}, concurrent),
+		log:      opts.Logger,
 	}
 }
 
 // FetchAll fetches up to Limit*MaxPages items for the entity by requesting one page per goroutine,
 // then concatenates all results. Pages that return fewer than Limit items do not trigger further pages.
 func (f *Fetcher) FetchAll(ctx context.Context) ([]json.RawMessage, error) {
+	if f.log != nil {
+		f.log.Logf("fetcher %s: starting %d pages (limit %d)", f.entity, f.maxPages, f.limit)
+	}
 	var mu sync.Mutex
 	var combined []json.RawMessage
 	var firstErr error
+	var pagesDone int
 	var wg sync.WaitGroup
 	done := make(chan struct{})
 	go func() {
@@ -110,7 +118,12 @@ func (f *Fetcher) FetchAll(ctx context.Context) ([]json.RawMessage, error) {
 			if len(pageResults) > 0 {
 				mu.Lock()
 				combined = append(combined, pageResults...)
+				pagesDone++
+				total := len(combined)
 				mu.Unlock()
+				if f.log != nil {
+					f.log.Logf("fetcher %s: page %d/%d done (%d items this page, %d total)", f.entity, page+1, f.maxPages, len(pageResults), total)
+				}
 			}
 		}()
 	}
@@ -125,6 +138,9 @@ func (f *Fetcher) FetchAll(ctx context.Context) ([]json.RawMessage, error) {
 	mu.Unlock()
 	if err != nil {
 		return nil, err
+	}
+	if f.log != nil {
+		f.log.Logf("fetcher %s: finished %d items", f.entity, len(combined))
 	}
 	return combined, nil
 }

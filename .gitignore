@@ -7,7 +7,7 @@
 /vargames-name-gen
 
 # Fetched data (large)
-alternative-names.json
+data/
 
 # OS
 .DS_Store
