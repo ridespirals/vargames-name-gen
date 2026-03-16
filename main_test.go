@@ -1,0 +1,53 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"testing"
+
+	"vargames-name-gen/src/config"
+	"vargames-name-gen/src/igdb"
+)
+
+const (
+	alternativeNamesExpectedCount = 195850
+	alternativeNamesOutputFile    = "alternative-names.json"
+)
+
+// TestFetchAlternativeNames fetches all alternative_names from IGDB, verifies the count
+// is 195850, and writes the results to alternative-names.json.
+// Skip with: go test -short
+// Requires IGDB credentials in .env or environment.
+func TestFetchAlternativeNames(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in -short mode")
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Skipf("config not available (set IGDB_CLIENT_ID and IGDB_CLIENT_SECRET): %v", err)
+	}
+	client := igdb.NewClient(cfg)
+	// 195850 / 500 ≈ 392 pages; use 400 to be safe
+	fetcher := igdb.NewFetcher(client, igdb.EntityAlternativeNames, igdb.FetcherOptions{
+		Limit:         500,
+		MaxPages:      400,
+		MaxConcurrent: 4,
+	})
+	ctx := context.Background()
+	results, err := fetcher.FetchAll(ctx)
+	if err != nil {
+		t.Fatalf("FetchAll: %v", err)
+	}
+	if len(results) != alternativeNamesExpectedCount {
+		t.Errorf("got %d alternative_names, want %d", len(results), alternativeNamesExpectedCount)
+	}
+	raw, err := json.Marshal(results)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if err := os.WriteFile(alternativeNamesOutputFile, raw, 0644); err != nil {
+		t.Fatalf("WriteFile %s: %v", alternativeNamesOutputFile, err)
+	}
+	t.Logf("wrote %d items to %s", len(results), alternativeNamesOutputFile)
+}

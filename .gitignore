@@ -6,5 +6,8 @@
 # Binaries
 /vargames-name-gen
 
+# Fetched data (large)
+alternative-names.json
+
 # OS
 .DS_Store
