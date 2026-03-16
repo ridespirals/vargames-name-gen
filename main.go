@@ -15,3 +15,4 @@ func main() {
 	_ = cfg // use cfg.ClientID, cfg.ClientSecret, cfg.BaseURL for API calls
 	fmt.Printf("Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n", cfg.BaseURL)
 }
+
