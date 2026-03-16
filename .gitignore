@@ -1,0 +1,10 @@
+# Secrets – do not commit
+.env
+.env.local
+.env.*.local
+
+# Binaries
+/vargames-name-gen
+
+# OS
+.DS_Store
