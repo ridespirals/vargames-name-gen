@@ -25,3 +25,13 @@ func AllEntities() []Entity {
 		EntityAlternativeNames,
 	}
 }
+
+// ValidEntity returns true if s is a known entity name (e.g. "games", "alternative_names").
+func ValidEntity(s string) bool {
+	for _, e := range AllEntities() {
+		if string(e) == s {
+			return true
+		}
+	}
+	return false
+}

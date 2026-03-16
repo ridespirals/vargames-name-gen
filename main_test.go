@@ -12,12 +12,11 @@ import (
 
 const (
 	alternativeNamesExpectedCount = 195850
-	dataDir                       = "data"
-	alternativeNamesOutputFile    = "data/alternative-names.json"
+	alternativeNamesOutputFile    = "data/alternative_names.json"
 )
 
 // TestFetchAlternativeNames fetches all alternative_names from IGDB, verifies the count
-// is 195850, and writes the results to data/alternative-names.json.
+// is 195850, and writes the results to data/alternative_names.json.
 // Skip with: go test -short
 // Requires IGDB credentials in .env or environment.
 func TestFetchAlternativeNames(t *testing.T) {
