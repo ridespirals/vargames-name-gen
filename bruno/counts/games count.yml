@@ -1,0 +1,24 @@
+info:
+  name: games count
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: "{{base_url}}/games/count"
+  headers:
+    - name: Client-Id
+      value: "{{client_id}}"
+    - name: Authorization
+      value: Bearer {{access_token}}
+  body:
+    type: text
+    data: ""
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+

@@ -12,6 +12,16 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
   - We'd be able to determine how many "fetchers" we could use to pull all the data in parallel
   - Could also possibly optimize for number of requests or time or fetchers or whatever
   - Could be a basic change detection feature (if we store the count we found when we last ran, we could at least detect if there are new entities. We'd need another mechanism for modified data, though)
+- Items have a `checksum` field on them: we might be able to use this for updating data
+  - If we fetch limited fields (like just `id` and `checksum`) we can use this for change detection to know if we need to re-pull data for an entity
+  - There is still overhead with HTTP requests and rate-limiting, so it'll require some R&D to determine whether its more efficient to
+    1. pull the entire table with limited fields (which means very small response payloads and possibly faster response times) and comparing checksums to then pull full items with specific IDs
+    2. or just to re-pull the entire table if "know" that "some" data has changed.
+- Utilize more github features?
+  - obviously running unit tests on PRs or commits would be good. we have no "deployment" currently, so it's unclear where exactly this would happen, but if I make a habit of doing PRs once we reach a baseline level of functionality, that's one place we could do it
+  - use Issues to track TODOs/future development (or even actual bugs if I find them) (ie. this list)
+  - Expand the generated reports and stuff into a more fleshed-out site (at least a master page that can link to/navigate between the other pages) and host it with github pages
+  - Eventually it would be cool to deploy this to aws or something (it has to be 100% free no matter what), so using github actions for that would be nice
 
 ---
 

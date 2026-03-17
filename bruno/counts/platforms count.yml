@@ -1,0 +1,23 @@
+info:
+  name: platforms count
+  type: http
+  seq: 10
+
+http:
+  method: GET
+  url: "{{base_url}}/platforms/count"
+  headers:
+    - name: Client-Id
+      value: "{{client_id}}"
+    - name: Authorization
+      value: Bearer {{access_token}}
+  body:
+    type: text
+    data: ""
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
