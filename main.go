@@ -110,25 +110,31 @@ func main() {
 				}
 				reportPath := filepath.Join(dataDir, entityStr+"-report.html")
 				if err := writeFetchReport(metrics, wallClock, len(results), reportPath); err != nil {
-					log.Printf("warning: could not write report for %s: %v", entityStr, err)
+					// log.Printf("warning: could not write report for %s: %v", entityStr, err)
+					logger.Logf("warning: could not write report", "entity", entityStr, "error", err)
 				} else if enableLog {
-					log.Printf("report written to %s", reportPath)
+					// log.Printf("report written to %s", reportPath)
+					logger.Logf("report written", "entity", entityStr, "path", reportPath)
 				}
-				log.Printf("wrote %d items to %s", len(results), outPath)
+				// log.Printf("wrote %d items to %s", len(results), outPath)
+				logger.Logf("wrote items", "entity", entityStr, "count", len(results), "path", outPath)
 			}()
 		}
 		wg.Wait()
 		if firstErr != nil {
 			log.Fatalf("%v", firstErr)
 		}
-		log.Printf("fetched %d entities in %s", len(entities), time.Since(start).Round(time.Millisecond))
+		// log.Printf("fetched %d entities in %s", len(entities), time.Since(start).Round(time.Millisecond))
+		logger.Logf("fetched entities", "count", len(entities), "duration", time.Since(start).Round(time.Millisecond))
 		return
 	}
 
 	if enableLog {
-		log.Println("verbose logging enabled (IGDB client/fetchers)")
+		// log.Println("verbose logging enabled (IGDB client/fetchers)")
+		logger.Logf("verbose logging enabled (IGDB client/fetchers)")
 	}
 	client := igdb.NewClient(cfg, igdb.WithLogger(logger))
 	_ = client
-	fmt.Printf("Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n", cfg.BaseURL)
+	// fmt.Printf("Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n", cfg.BaseURL)
+	logger.Logf("hello from vargames-name-gen", "baseURL", cfg.BaseURL)
 }

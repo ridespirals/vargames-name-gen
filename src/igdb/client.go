@@ -162,7 +162,8 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	c.expiry = expiry
 	c.mu.Unlock()
 	if c.log != nil {
-		c.log.Logf("token: refreshed, expires in %ds", tr.ExpiresIn)
+		// c.log.Logf("token: refreshed, expires in %ds", tr.ExpiresIn)
+		c.log.Logf("token refreshed", "expires", tr.ExpiresIn)
 	}
 	return token, nil
 }
@@ -196,7 +197,8 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 				remaining := time.Until(deadline)
 				if remaining <= 0 {
 					if c.log != nil {
-						c.log.Logf("igdb %s: giving up after max retry duration", endpoint)
+						// c.log.Logf("igdb %s: giving up after max retry duration", endpoint)
+						c.log.Logf("giving up after max retry duration", "endpoint", endpoint)
 					}
 					if c.metrics != nil {
 						c.metrics.RecordPost(endpoint, attempt+1, time.Since(start))
@@ -206,7 +208,8 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 				sleep = remaining
 			}
 			if c.log != nil {
-				c.log.Logf("igdb %s: retry %d/%d in %v after error: %v", endpoint, attempt+1, c.retries, sleep.Round(time.Second), err)
+				// c.log.Logf("igdb %s: retry %d/%d in %v after error: %v", endpoint, attempt+1, c.retries, sleep.Round(time.Second), err)
+				c.log.Logf("retrying", "endpoint", endpoint, "attempt", attempt+1, "sleep", sleep.Round(time.Second), "error", err)
 			}
 			select {
 			case <-ctx.Done():
@@ -242,7 +245,8 @@ func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]by
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "text/plain")
 	if c.log != nil {
-		c.log.Logf("igdb POST %s: {%s}", endpoint, string(body))
+		// c.log.Logf("igdb POST %s: {%s}", endpoint, string(body))
+		c.log.Logf("igdb POST", "endpoint", endpoint, "body", string(body))
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {

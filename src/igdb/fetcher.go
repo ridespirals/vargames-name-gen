@@ -69,7 +69,8 @@ func NewFetcher(client FetcherClient, entity Entity, opts FetcherOptions) *Fetch
 // of the dataset is reached.
 func (f *Fetcher) FetchAll(ctx context.Context) ([]json.RawMessage, error) {
 	if f.log != nil {
-		f.log.Logf("fetcher %s: starting paging with limit %d", f.entity, f.limit)
+		// f.log.Logf("fetcher %s: starting paging with limit %d", f.entity, f.limit)
+		f.log.Logf("starting fetcher", "entity", f.entity, "limit", f.limit)
 	}
 	var combined []json.RawMessage
 
@@ -92,24 +93,28 @@ func (f *Fetcher) FetchAll(ctx context.Context) ([]json.RawMessage, error) {
 		}
 		if len(pageResults) == 0 {
 			if f.log != nil {
-				f.log.Logf("fetcher %s: page %d returned 0 items, stopping", f.entity, page+1)
+				// f.log.Logf("fetcher %s: page %d returned 0 items, stopping", f.entity, page+1)
+				f.log.Logf("stopping fetcher, returned 0 items", "entity", f.entity, "page", page+1)
 			}
 			break
 		}
 		combined = append(combined, pageResults...)
 		if f.log != nil {
-			f.log.Logf("fetcher %s: page %d fetched %d items (total %d)", f.entity, page+1, len(pageResults), len(combined))
+			// f.log.Logf("fetcher %s: page %d fetched %d items (total %d)", f.entity, page+1, len(pageResults), len(combined))
+			f.log.Logf("fetcher", "entity", f.entity, "page", page+1, "fetched", len(pageResults), "total", len(combined))
 		}
 		if len(pageResults) < f.limit {
 			if f.log != nil {
-				f.log.Logf("fetcher %s: page %d returned %d < %d items, assuming end of data", f.entity, page+1, len(pageResults), f.limit)
+				// f.log.Logf("fetcher %s: page %d returned %d < %d items, assuming end of data", f.entity, page+1, len(pageResults), f.limit)
+				f.log.Logf("stopping fetcher, returned less than limit items, assuming end of data", "entity", f.entity, "page", page+1, "fetched", len(pageResults), "limit", f.limit)
 			}
 			break
 		}
 	}
 
 	if f.log != nil {
-		f.log.Logf("fetcher %s: finished %d items", f.entity, len(combined))
+		// f.log.Logf("fetcher %s: finished %d items", f.entity, len(combined))
+		f.log.Logf("finished fetcher", "entity", f.entity, "items", len(combined))
 	}
 	return combined, nil
 }
