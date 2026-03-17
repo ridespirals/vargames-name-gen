@@ -53,7 +53,7 @@ This document captures the current intent and design of the project so other dev
         - Spawns a goroutine that:
           - Creates a dedicated `igdb.Metrics` and `igdb.Client` (with logger + metrics).
           - Creates an `igdb.Fetcher` for that entity.
-          - Calls `FetchAll` to page through **up to 500 pages** with limit = `Config.MaxLimit` (default 500).
+          - Calls `FetchAll` to page through pages with limit = `Config.MaxLimit` (default 500) until a page is empty or partial.
           - Writes the raw JSON array to:
             - `data/<entity>.json` (e.g. `data/alternative_names.json`).
           - Writes an HTML report to:
@@ -103,7 +103,7 @@ This document captures the current intent and design of the project so other dev
           - `IGDB_CLIENT_SECRET`
           - Optional `IGDB_BASE_URL`
           - Optional `IGDB_ACCESS_TOKEN` (pre-generated IGDB access token; if present, skips Twitch OAuth).
-          - Optional `IGDB_MAX_LIMIT` (int; default `500`).
+          - Optional `IGDB_MAX_LIMIT` (int; default `500`, IGDB hard max is 500 per page).
           - Optional `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging; accepts `1`, `true`, `on`, `yes`).
         - Fails if required vars missing:
           - `missing required environment variable IGDB_CLIENT_ID`
@@ -213,14 +213,15 @@ This document captures the current intent and design of the project so other dev
   - `type Fetcher`:
     - Created via `NewFetcher(client *Client, entity Entity, opts FetcherOptions)`.
     - `FetcherOptions`:
-      - `Limit` (per-page limit; default uses `client.MaxLimit()` which reflects `Config.MaxLimit`).
-      - `MaxPages` (default 20; in main we use 500 for full exports).
-      - `MaxConcurrent` (default 4; concurrency for paging).
+      - `Limit` (per-page limit; default uses `client.MaxLimit()` which reflects `Config.MaxLimit`, default 500).
+      - `MaxConcurrent` (reserved for future concurrency tuning; not currently used in `FetchAll`).
       - `Logger` (optional, for progress logs).
     - `FetchAll(ctx)`:
-      - Spawns up to `MaxPages` goroutines, each requesting:
+      - Walks pages sequentially, starting at offset 0:
         - `fields *; limit <Limit>; offset <page * Limit>;`.
-      - Uses a semaphore (`MaxConcurrent`) to avoid unbounded parallelism.
+      - Stops when:
+        - A page returns zero results, or
+        - A page returns fewer than `Limit` results.
       - Aggregates JSON responses into `[]json.RawMessage`.
       - Logs progress per page and final item count when a logger is set.
       - Returns combined results or the first error encountered.
@@ -283,7 +284,7 @@ Good next steps for any developer or agent:
      - Delegate generation to the `names` package.
 
 3. **Improve fetch robustness and configurability**
-   - Make per-entity `MaxPages`, `MaxConcurrent`, and `MaxLimit` configurable via flags/env.
+   - Make per-entity `MaxConcurrent` and `MaxLimit` configurable via flags/env.
    - Allow partial results even when some pages or entities fail (with clear reporting).
    - Consider persisting fetch metadata (e.g. last run time, last successful page) in `data/`.
 

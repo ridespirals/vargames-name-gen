@@ -6,6 +6,15 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 
 ---
 
+### TODO / Future
+
+- Use `/count` endpoints to enable fanout
+  - We'd be able to determine how many "fetchers" we could use to pull all the data in parallel
+  - Could also possibly optimize for number of requests or time or fetchers or whatever
+  - Could be a basic change detection feature (if we store the count we found when we last ran, we could at least detect if there are new entities. We'd need another mechanism for modified data, though)
+
+---
+
 ### Features
 
 - **Config + env loading**
@@ -14,7 +23,7 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
     - `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`
     - `IGDB_BASE_URL` (default: `https://api.igdb.com/v4`)
     - `IGDB_ACCESS_TOKEN` (optional, pre-generated token; otherwise client-credentials flow is used)
-    - `IGDB_MAX_LIMIT` (page size for IGDB queries, default `500`)
+    - `IGDB_MAX_LIMIT` (page size for IGDB queries; IGDB max and default here is `500`)
     - `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging)
 
 - **IGDB client**
@@ -24,11 +33,14 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
     - Configurable min/max backoff and max total retry duration.
     - Max retry count capped (defaults described in `AGENTS.md`).
 
-- **Parallel fetchers**
+- **Fetchers**
   - `igdb.Fetcher`:
     - Pages through IGDB endpoints (e.g. `/games`, `/genres`, `/alternative_names`) using Apicalypse bodies:
       - `fields *; limit <N>; offset <page * N>;`
-    - Uses concurrency-limited goroutines to fetch multiple pages in parallel.
+    - Walks pages **sequentially** for a given entity:
+      - Starts at offset `0`.
+      - Increments offset by `limit` each page.
+      - Stops when a page is empty or shorter than `limit`.
     - Aggregates results into a single JSON array.
 
 - **Metrics and reports**
@@ -76,7 +88,7 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 
    - `IGDB_BASE_URL=https://api.igdb.com/v4`
    - `IGDB_ACCESS_TOKEN=<pre-generated IGDB token>`
-   - `IGDB_MAX_LIMIT=500`
+   - `IGDB_MAX_LIMIT=500` (IGDB supports up to 500 per page; this is also our default)
    - `IGDB_VERBOSE=1` (or `true`, `on`, `yes`) to enable logging, or use `-verbose` flag.
 
 3. **Build**
@@ -114,7 +126,7 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
   This will:
 
   - Call `POST https://api.igdb.com/v4/alternative_names` with appropriate Apicalypse queries.
-  - Page until it exhausts the entity or reaches the configured max pages.
+  - Page until it exhausts the entity (empty/short page).
   - Write:
     - Raw data: `data/alternative_names.json`
     - Report:   `data/alternative_names-report.html`
@@ -127,8 +139,8 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
 
   For each of `games`, `genres`, `platforms`:
 
-  - Creates its own IGDB client + metrics + fetcher.
-  - Fetches pages concurrently (limited by `MaxConcurrent`) for that entity.
+  - Creates its own IGDB client + metrics + fetcher (per-entity concurrency).
+  - Fetches pages **sequentially** for that entity; entities are processed in parallel.
   - Writes:
     - `data/<entity>.json`
     - `data/<entity>-report.html`
@@ -216,7 +228,7 @@ High‑level flow (for fetches):
    - Handles auth, retries, backoff, and low‑level HTTP transport.
 
 4. `igdb.Fetcher`
-   - Implements paging and concurrency for specific IGDB entities (`games`, `genres`, etc.).
+   - Implements paging for specific IGDB entities (`games`, `genres`, etc.).
 
 5. `igdb.Metrics` + `report.go`
    - Records and visualizes performance and reliability characteristics.

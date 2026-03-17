@@ -93,7 +93,7 @@ func (c *Client) MaxLimit() int {
 	if c.cfg.MaxLimit > 0 {
 		return c.cfg.MaxLimit
 	}
-	return 500
+	return config.DefaultMaxLimit
 }
 
 // tokenResponse is the Twitch OAuth2 token response.
@@ -233,6 +233,7 @@ func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]by
 		return nil, err
 	}
 	u := c.cfg.BaseURL + "/" + endpoint
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -240,6 +241,9 @@ func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]by
 	req.Header.Set("Client-Id", c.cfg.ClientID)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "text/plain")
+	if c.log != nil {
+		c.log.Logf("igdb POST %s: {%s}", endpoint, string(body))
+	}
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
@@ -254,9 +258,6 @@ func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]by
 	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("igdb %s: status %d: %s", endpoint, resp.StatusCode, string(out))
-	}
-	if c.log != nil {
-		c.log.Logf("igdb %s: OK %d bytes", endpoint, len(out))
 	}
 	return out, nil
 }

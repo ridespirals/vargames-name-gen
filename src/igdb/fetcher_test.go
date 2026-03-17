@@ -59,16 +59,14 @@ func TestFetcher_FetchAll_CombinesPages(t *testing.T) {
 	defer igdb.Close()
 
 	cfg := config.Config{
-		ClientID:     "cid",
-		BaseURL:      igdb.URL,
-		AccessToken:  "test-token",
-		MaxLimit:     2,
+		ClientID:    "cid",
+		BaseURL:     igdb.URL,
+		AccessToken: "test-token",
+		MaxLimit:    2,
 	}
 	client := NewClient(cfg)
 	fetcher := NewFetcher(client, EntityGames, FetcherOptions{
-		Limit:         2,
-		MaxPages:      4,
-		MaxConcurrent: 4,
+		Limit: 2,
 	})
 	ctx := context.Background()
 	results, err := fetcher.FetchAll(ctx)
@@ -85,6 +83,88 @@ func TestFetcher_FetchAll_CombinesPages(t *testing.T) {
 	mu.Unlock()
 }
 
+func TestFetcher_FirstRequestOffsetZero(t *testing.T) {
+	var firstOffset int = -1
+	igdbSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := make([]byte, 256)
+		n, _ := r.Body.Read(body)
+		offset := parseOffset(string(body[:n]))
+		if firstOffset == -1 {
+			firstOffset = offset
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer igdbSrv.Close()
+
+	cfg := config.Config{
+		ClientID:    "cid",
+		BaseURL:     igdbSrv.URL,
+		AccessToken: "test-token",
+		MaxLimit:    100,
+	}
+	client := NewClient(cfg)
+	fetcher := NewFetcher(client, EntityGames, FetcherOptions{
+		Limit: 0, // use MaxLimit
+	})
+	ctx := context.Background()
+	if _, err := fetcher.FetchAll(ctx); err != nil {
+		t.Fatalf("FetchAll: %v", err)
+	}
+	if firstOffset != 0 {
+		t.Fatalf("expected first request offset 0, got %d", firstOffset)
+	}
+}
+
+func TestFetcher_FirstRequestOffsetZero_MultiEntities(t *testing.T) {
+	firstOffsets := map[string]int{
+		"/genres":    -1,
+		"/platforms": -1,
+	}
+	igdbSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := make([]byte, 256)
+		n, _ := r.Body.Read(body)
+		offset := parseOffset(string(body[:n]))
+		if _, ok := firstOffsets[r.URL.Path]; ok && firstOffsets[r.URL.Path] == -1 {
+			firstOffsets[r.URL.Path] = offset
+		}
+		w.Write([]byte(`[]`))
+	}))
+	defer igdbSrv.Close()
+
+	cfg := config.Config{
+		ClientID:    "cid",
+		BaseURL:     igdbSrv.URL,
+		AccessToken: "test-token",
+		MaxLimit:    100,
+	}
+
+	client := NewClient(cfg)
+
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	runFetcher := func(entity Entity, path string) {
+		defer wg.Done()
+		fetcher := NewFetcher(client, entity, FetcherOptions{
+			Limit: 0, // use MaxLimit
+		})
+		if _, err := fetcher.FetchAll(ctx); err != nil {
+			t.Errorf("FetchAll %s: %v", path, err)
+		}
+	}
+
+	wg.Add(2)
+	go runFetcher(EntityGenres, "/genres")
+	go runFetcher(EntityPlatforms, "/platforms")
+	wg.Wait()
+
+	if firstOffsets["/genres"] != 0 {
+		t.Fatalf("expected first request offset 0 for genres, got %d", firstOffsets["/genres"])
+	}
+	if firstOffsets["/platforms"] != 0 {
+		t.Fatalf("expected first request offset 0 for platforms, got %d", firstOffsets["/platforms"])
+	}
+}
+
 func TestFetcher_FetchAll_EmptyResponse(t *testing.T) {
 	igdb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`[]`))
@@ -98,7 +178,7 @@ func TestFetcher_FetchAll_EmptyResponse(t *testing.T) {
 		MaxLimit:    500,
 	}
 	client := NewClient(cfg)
-	fetcher := NewFetcher(client, EntityGenres, FetcherOptions{MaxPages: 2})
+	fetcher := NewFetcher(client, EntityGenres, FetcherOptions{})
 	ctx := context.Background()
 	results, err := fetcher.FetchAll(ctx)
 	if err != nil {
@@ -123,7 +203,7 @@ func TestFetcher_FetchAll_PropagatesError(t *testing.T) {
 		MaxLimit:    500,
 	}
 	client := NewClient(cfg, WithRetries(0))
-	fetcher := NewFetcher(client, EntityCharacters, FetcherOptions{MaxPages: 2})
+	fetcher := NewFetcher(client, EntityCharacters, FetcherOptions{})
 	ctx := context.Background()
 	_, err := fetcher.FetchAll(ctx)
 	if err == nil {

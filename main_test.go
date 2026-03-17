@@ -29,12 +29,9 @@ func TestFetchAlternativeNames(t *testing.T) {
 	}
 	logger := igdb.LoggerFromVerbose(cfg.Verbose)
 	client := igdb.NewClient(cfg, igdb.WithLogger(logger))
-	// 195850 / 500 ≈ 392 pages; use 400 to be safe
 	fetcher := igdb.NewFetcher(client, igdb.EntityAlternativeNames, igdb.FetcherOptions{
-		Limit:         500,
-		MaxPages:      400,
-		MaxConcurrent: 4,
-		Logger:        logger,
+		Limit:  0,
+		Logger: logger,
 	})
 	ctx := context.Background()
 	results, err := fetcher.FetchAll(ctx)

@@ -61,6 +61,7 @@ func main() {
 		var firstErr error
 		var wg sync.WaitGroup
 		for _, entityStr := range entities {
+			// capture local copy of entityStr to avoid race condition
 			entityStr := entityStr
 			wg.Add(1)
 			go func() {
@@ -69,7 +70,6 @@ func main() {
 				client := igdb.NewClient(cfg, igdb.WithLogger(logger), igdb.WithMetrics(metrics))
 				fetcher := igdb.NewFetcher(client, igdb.Entity(entityStr), igdb.FetcherOptions{
 					Limit:         0,
-					MaxPages:      500,
 					MaxConcurrent: 4,
 					Logger:        logger,
 				})
@@ -126,4 +126,3 @@ func main() {
 	_ = client
 	fmt.Printf("Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n", cfg.BaseURL)
 }
-

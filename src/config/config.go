@@ -20,8 +20,9 @@ type Config struct {
 	// AccessToken is an optional pre-generated IGDB access token.
 	// Most callers should prefer using client credentials flow instead.
 	AccessToken string
-	// MaxLimit is the default maximum "limit" to use in IGDB queries.
-	// This corresponds to the Bruno prod environment `max_limit` (default 500).
+	// MaxLimit is the default "limit" (page size) to use in IGDB queries.
+	// IGDB allows up to 500 results per page; we default to a smaller value
+	// (200) for reliability unless overridden.
 	MaxLimit int
 	// Verbose enables progress logging for IGDB client and fetchers when true.
 	// Set via IGDB_VERBOSE or VARGAMES_VERBOSE (1, true, on), or -verbose flag.
@@ -35,15 +36,15 @@ const (
 	EnvBaseURL      = "IGDB_BASE_URL"
 	EnvAccessToken  = "IGDB_ACCESS_TOKEN"
 	EnvMaxLimit     = "IGDB_MAX_LIMIT"
-	EnvVerbose     = "IGDB_VERBOSE"
-	EnvVerboseAlt  = "VARGAMES_VERBOSE"
+	EnvVerbose      = "IGDB_VERBOSE"
+	EnvVerboseAlt   = "VARGAMES_VERBOSE"
 )
 
 // DefaultBaseURL is the default IGDB API base URL.
 const DefaultBaseURL = "https://api.igdb.com/v4"
 
-// DefaultMaxLimit is the default IGDB "limit" used when none is provided.
-// Mirrors bruno prod environment's max_limit value.
+// DefaultMaxLimit is the default IGDB "limit" (page size) used when none is provided.
+// IGDB's maximum (and our default) is 500.
 const DefaultMaxLimit = 500
 
 // LoadEnv reads a .env file from the current working directory and sets
