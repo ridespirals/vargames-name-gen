@@ -11,8 +11,6 @@ http:
       value: "{{client_id}}"
     - name: Authorization
       value: Bearer {{access_token}}
-    - name: Body
-      value: fields *;
   body:
     type: text
     data: |-
