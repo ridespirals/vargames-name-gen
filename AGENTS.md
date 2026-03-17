@@ -36,14 +36,33 @@ This document captures the current intent and design of the project so other dev
 
 **Key Files (as of now)**
 
-- `src/main.go`
-  - Entrypoint, currently just loads configuration and prints a confirmation:
-    - Uses `config.Load()` to obtain `Config` (value, not pointer).
-    - On error, logs and exits:
-      - `log.Fatalf("config: %v (set %s and %s, e.g. from .env)", ...)`
-    - On success, prints:
-      - `"Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n"`
-  - Does **not** yet make IGDB HTTP calls; that is the next logical step.
+- `main.go`
+  - Entrypoint for the CLI.
+  - Responsibilities:
+    - Loads configuration via `config.Load()`.
+    - Builds a logger from `-verbose` flag and/or `Config.Verbose`.
+    - When `-fetch` is **empty**:
+      - Just validates config and prints:
+        - `"Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n"`.
+    - When `-fetch` is **set**:
+      - Accepts a **comma-separated list** of entities:
+        - Example: `-fetch=games,genres,alternative_names`.
+      - Valid entity names (must match IGDB endpoints and the `igdb` package):
+        - `games`, `characters`, `genres`, `platforms`, `collections`, `companies`, `alternative_names`.
+      - For each entity:
+        - Spawns a goroutine that:
+          - Creates a dedicated `igdb.Metrics` and `igdb.Client` (with logger + metrics).
+          - Creates an `igdb.Fetcher` for that entity.
+          - Calls `FetchAll` to page through **up to 500 pages** with limit = `Config.MaxLimit` (default 500).
+          - Writes the raw JSON array to:
+            - `data/<entity>.json` (e.g. `data/alternative_names.json`).
+          - Writes an HTML report to:
+            - `data/<entity>-report.html` (e.g. `data/alternative_names-report.html`).
+            - Report includes total duration, request counts, retry distribution, and per-request samples.
+      - Waits for all goroutines to finish:
+        - Fails fast if any entity fetch fails.
+        - Logs a summary such as:
+          - `"fetched 3 entities in 1m23s"`.
 
 - `src/config/config.go`
   - Package: `config`
@@ -83,11 +102,16 @@ This document captures the current intent and design of the project so other dev
           - `IGDB_CLIENT_ID`
           - `IGDB_CLIENT_SECRET`
           - Optional `IGDB_BASE_URL`
+          - Optional `IGDB_ACCESS_TOKEN` (pre-generated IGDB access token; if present, skips Twitch OAuth).
+          - Optional `IGDB_MAX_LIMIT` (int; default `500`).
+          - Optional `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging; accepts `1`, `true`, `on`, `yes`).
         - Fails if required vars missing:
           - `missing required environment variable IGDB_CLIENT_ID`
           - `missing required environment variable IGDB_CLIENT_SECRET`
         - Uses `DefaultBaseURL` if `IGDB_BASE_URL` is empty.
+        - Uses `DefaultMaxLimit` if `IGDB_MAX_LIMIT` is unset or invalid.
         - Returns a **value** `Config` (not `*Config`), which is treated as immutable.
+        - `Config.Verbose` controls default verbose logging for the client and fetchers.
 
 - `.env.example`
   - Documents expected env vars:
@@ -148,32 +172,87 @@ This document captures the current intent and design of the project so other dev
 
 ---
 
-### 4. Anticipated Future Structure
+### 4. IGDB Client, Fetcher, and Metrics (Current Implementation)
 
-This is not implemented yet, but planned and recommended:
+- `src/igdb/client.go`
+  - `type Client`:
+    - Holds:
+      - `config.Config` (credentials, base URL, max limit, verbose flag).
+      - `*http.Client` with a 30s timeout.
+      - Cached OAuth token + expiry.
+      - Retry/backoff configuration.
+      - Optional `Logger` and `*Metrics`.
+    - Authentication:
+      - If `Config.AccessToken` is non-empty:
+        - Uses it directly as `Authorization: Bearer <token>`.
+      - Otherwise:
+        - Fetches an access token from Twitch using client-credentials:
+          - `https://id.twitch.tv/oauth2/token?client_id=...&client_secret=...&grant_type=client_credentials`.
+        - Caches token and expiry; refreshes slightly early.
+    - `Post(ctx, endpoint, body)`:
+      - Sends `POST` to `Config.BaseURL + "/" + endpoint` with:
+        - `Client-Id: <ClientID>`.
+        - `Authorization: Bearer <access token>`.
+        - `Content-Type: text/plain`.
+      - Retry semantics:
+        - Retries **up to 10** times on retriable errors (HTTP 429 or `5xx`).
+        - Exponential backoff:
+          - `DefaultRetryMinBackoff` (currently ~seconds) doubling each attempt.
+          - Capped at `DefaultRetryMaxBackoff` (5 minutes).
+        - Total time spent in backoff is capped by `DefaultMaxRetryDuration` (1 hour).
+        - Non-retriable errors (e.g. 400/401/403) fail immediately.
+      - Logging:
+        - When verbose, logs token refresh events, retries, and successful responses (endpoint + bytes).
+      - Metrics:
+        - If a `*Metrics` is attached via `WithMetrics`, records:
+          - Endpoint.
+          - Retries used.
+          - Total duration for that call.
 
-- `src/igdb/`
-  - `client.go`: `type Client` with:
-    - Auth handling (Client ID/secret → Twitch OAuth token).
-    - `BaseURL` from `config.Config`.
-    - Methods like:
-      - `GetGames(ctx context.Context, query GameQuery) ([]Game, error)`
-      - `GetGenres(ctx context.Context, ids []int64) ([]Genre, error)`
-  - `models.go`: light structs matching IGDB entities we care about (`Game`, `Genre`, `Platform`, etc.).
+- `src/igdb/fetcher.go`
+  - `type Fetcher`:
+    - Created via `NewFetcher(client *Client, entity Entity, opts FetcherOptions)`.
+    - `FetcherOptions`:
+      - `Limit` (per-page limit; default uses `client.MaxLimit()` which reflects `Config.MaxLimit`).
+      - `MaxPages` (default 20; in main we use 500 for full exports).
+      - `MaxConcurrent` (default 4; concurrency for paging).
+      - `Logger` (optional, for progress logs).
+    - `FetchAll(ctx)`:
+      - Spawns up to `MaxPages` goroutines, each requesting:
+        - `fields *; limit <Limit>; offset <page * Limit>;`.
+      - Uses a semaphore (`MaxConcurrent`) to avoid unbounded parallelism.
+      - Aggregates JSON responses into `[]json.RawMessage`.
+      - Logs progress per page and final item count when a logger is set.
+      - Returns combined results or the first error encountered.
 
-- `src/names/`
+- `src/igdb/entities.go`
+  - `type Entity string` with constants:
+    - `games`, `characters`, `genres`, `platforms`, `collections`, `companies`, `alternative_names`.
+  - `AllEntities()` and `ValidEntity(string) bool` helpers.
+
+- `src/igdb/logger.go`
+  - `Logger` interface with `Logf`.
+  - `NoOpLogger`, `StdLogger`, and `VerboseLogger`.
+  - `LoggerFromVerbose(bool)` used by `main` to create a logger from flags/env.
+
+- `src/igdb/metrics.go`
+  - `Metrics` to record:
+    - Per-request records (`PostRecord`: endpoint, retries, duration).
+  - Used by `main` and `report.go` to generate HTML fetch reports.
+
+- `src/names/` (not yet implemented)
   - Logic for **name generation** using IGDB data:
     - Simple baselines:
       - Concatenate and mutate real titles.
       - Markov-ish chains over real titles.
     - Weighted by genre or other metadata.
 
-- `src/httpapi/` or `src/server/`
+- `src/httpapi/` or `src/server/` (not yet implemented)
   - HTTP handlers exposing:
     - `/generate/game-name` (with optional `genre`, `platform`, `seed` params).
     - `/generate/character-name`, etc.
 
-- `src/cli/`
+- `src/cli/` (partially covered by current `main.go`)
   - Commands like:
     - `fetch-games`
     - `generate-game-name`
@@ -187,30 +266,34 @@ These are **guidelines** meant to keep the project modular and testable.
 
 Good next steps for any developer or agent:
 
-1. **Implement the IGDB client skeleton**
-   - Create `src/igdb/client.go`.
-   - Add a `Client` that holds:
-     - `http.Client`
-     - `Config` (or a smaller `Credentials` struct)
-     - Cached access token + expiry.
-   - Implement:
-     - A method to fetch and cache a Twitch access token.
-     - A small method to call one IGDB endpoint (e.g., basic `/games` query).
+1. **Leverage fetched data for name generation**
+   - Implement a `names` package that:
+     - Consumes `data/games.json`, `data/alternative_names.json`, etc.
+     - Produces game/character name suggestions using:
+       - Concatenation and simple mutation strategies.
+       - Markov-style models over existing names.
+     - Supports weighting by genre/platform using the fetched metadata.
 
-2. **Add a minimal CLI or HTTP endpoint**
-   - Example: `main.go` could:
-     - Initialize `Config`.
-     - Create `igdb.Client`.
-     - Fetch a few games and print their names as a smoke test.
+2. **Add a small HTTP API**
+   - Expose endpoints such as:
+     - `GET /generate/game-name?genre=<id>&seed=<string>`.
+     - `GET /generate/character-name?...`.
+   - Internally:
+     - Load pre-fetched JSON (or a DB/embedded store) at startup.
+     - Delegate generation to the `names` package.
 
-3. **Begin experimenting with name generation**
-   - Add a `names` package that:
-     - Accepts a slice of IGDB game names.
-     - Produces simple generated names.
-   - Later, add options for weighting by genre and more involved algorithms.
+3. **Improve fetch robustness and configurability**
+   - Make per-entity `MaxPages`, `MaxConcurrent`, and `MaxLimit` configurable via flags/env.
+   - Allow partial results even when some pages or entities fail (with clear reporting).
+   - Consider persisting fetch metadata (e.g. last run time, last successful page) in `data/`.
+
+4. **Enhance reporting and observability**
+   - Add per-entity summary JSON alongside the HTML reports (for machine consumption).
+   - Capture and display IGDB status codes/error messages in the report.
+   - Optionally, add Prometheus metrics or structured logs for fetch runs.
 
 Keep this file (`AGENTS.md`) updated when you make structural or architectural changes, especially to:
 - Configuration behavior.
-- IGDB client design.
+- IGDB client, fetcher, retry, and metrics design.
 - Name generation strategy.
 
