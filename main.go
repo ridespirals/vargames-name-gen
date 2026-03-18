@@ -30,6 +30,21 @@ func parseEntityList(s string) []string {
 	return out
 }
 
+func writeEntityResultsJSON(entity string, results []json.RawMessage, dataDir string) (string, error) {
+	outPath := filepath.Join(dataDir, entity+".json")
+	raw, err := json.Marshal(results)
+	if err != nil {
+		return "", fmt.Errorf("marshal %s: %w", entity, err)
+	}
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return "", fmt.Errorf("mkdir %s: %w", dataDir, err)
+	}
+	if err := os.WriteFile(outPath, raw, 0644); err != nil {
+		return "", fmt.Errorf("write %s: %w", outPath, err)
+	}
+	return outPath, nil
+}
+
 func main() {
 	verbose := flag.Bool("verbose", false, "enable progress logging for IGDB client and fetchers")
 	fetchEntities := flag.String("fetch", "", "fetch entity/entities (comma-separated) and save to data/<entity>.json (e.g. -fetch=games, -fetch=games,genres,platforms)")
@@ -84,20 +99,11 @@ func main() {
 					errMu.Unlock()
 					return
 				}
-				outPath := filepath.Join(dataDir, entityStr+".json")
-				raw, err := json.Marshal(results)
+				outPath, err := writeEntityResultsJSON(entityStr, results, dataDir)
 				if err != nil {
 					errMu.Lock()
 					if firstErr == nil {
-						firstErr = fmt.Errorf("marshal %s: %w", entityStr, err)
-					}
-					errMu.Unlock()
-					return
-				}
-				if err := os.WriteFile(outPath, raw, 0644); err != nil {
-					errMu.Lock()
-					if firstErr == nil {
-						firstErr = fmt.Errorf("write %s: %w", outPath, err)
+						firstErr = err
 					}
 					errMu.Unlock()
 					return
