@@ -8,6 +8,13 @@ import (
 	"vargames-name-gen/src/config"
 )
 
+// FetcherClient is the minimal surface area required by Fetcher.
+// It allows unit tests to inject a mock without making HTTP calls.
+type FetcherClient interface {
+	MaxLimit() int
+	Post(ctx context.Context, endpoint string, body []byte) ([]byte, error)
+}
+
 // FetcherOptions configures parallel page fetching.
 type FetcherOptions struct {
 	// Limit is the page size (max items per request). Default from config MaxLimit.
@@ -24,7 +31,7 @@ const (
 
 // Fetcher fetches all pages for an IGDB entity and combines results.
 type Fetcher struct {
-	client *Client
+	client FetcherClient
 	entity Entity
 	limit  int
 	sem    chan struct{}
@@ -32,7 +39,7 @@ type Fetcher struct {
 }
 
 // NewFetcher creates a fetcher for the given entity using the client's config for limit when not set in opts.
-func NewFetcher(client *Client, entity Entity, opts FetcherOptions) *Fetcher {
+func NewFetcher(client FetcherClient, entity Entity, opts FetcherOptions) *Fetcher {
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = client.MaxLimit()
