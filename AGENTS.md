@@ -68,14 +68,22 @@ This document captures the current intent and design of the project so other dev
   - Package: `config`
   - Provides:
     - **Types**
-      - `type Config struct { ClientID, ClientSecret, BaseURL string }`
-        - `ClientID` and `ClientSecret`: Twitch app credentials for IGDB OAuth.
+      - `type Config struct` includes:
+        - `ClientID`: Twitch app client ID (IGDB OAuth).
+        - `ClientSecret`: Twitch app client secret (IGDB OAuth).
         - `BaseURL`: IGDB API base URL, defaults to `https://api.igdb.com/v4`.
+        - `AccessToken`: optional pre-generated token; if set, the client skips Twitch token fetching.
+        - `MaxLimit`: default IGDB per-page `limit` (page size); defaults to 500.
+        - `Verbose`: enables default verbose logging.
     - **Constants**
       - Env var names:
         - `EnvClientID     = "IGDB_CLIENT_ID"`
         - `EnvClientSecret = "IGDB_CLIENT_SECRET"`
         - `EnvBaseURL      = "IGDB_BASE_URL"`
+        - `EnvAccessToken  = "IGDB_ACCESS_TOKEN"`
+        - `EnvMaxLimit     = "IGDB_MAX_LIMIT"`
+        - `EnvVerbose      = "IGDB_VERBOSE"`
+        - `EnvVerboseAlt   = "VARGAMES_VERBOSE"`
       - Default:
         - `DefaultBaseURL = "https://api.igdb.com/v4"`
     - **Functions**
@@ -119,6 +127,10 @@ This document captures the current intent and design of the project so other dev
     - `IGDB_CLIENT_SECRET=`
     - Optional override:
       - `# IGDB_BASE_URL=https://api.igdb.com/v4`
+    - Optional:
+      - `# IGDB_ACCESS_TOKEN=`
+      - `# IGDB_MAX_LIMIT=500`
+      - `# IGDB_VERBOSE=1` (or set `VARGAMES_VERBOSE=1`)
   - Comments emphasize **do not commit real credentials**, only examples.
 
 - `go.mod`
@@ -211,7 +223,7 @@ This document captures the current intent and design of the project so other dev
 
 - `src/igdb/fetcher.go`
   - `type Fetcher`:
-    - Created via `NewFetcher(client *Client, entity Entity, opts FetcherOptions)`.
+    - Created via `NewFetcher(client FetcherClient, entity Entity, opts FetcherOptions)`.
     - `FetcherOptions`:
       - `Limit` (per-page limit; default uses `client.MaxLimit()` which reflects `Config.MaxLimit`, default 500).
       - `MaxConcurrent` (reserved for future concurrency tuning; not currently used in `FetchAll`).

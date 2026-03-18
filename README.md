@@ -23,6 +23,24 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
   - Expand the generated reports and stuff into a more fleshed-out site (at least a master page that can link to/navigate between the other pages) and host it with github pages
   - Eventually it would be cool to deploy this to aws or something (it has to be 100% free no matter what), so using github actions for that would be nice
 
+## Client unit tests
+
+1. Token caching: only fetch token once
+  - Configure the fake so the token endpoint returns a valid token on the first call.
+  - Call client.Post twice and assert the token endpoint was only hit once.
+  - (You don’t need wall-clock time; just ensure the second Post happens “before expiry” using a large expires_in.)
+2. Token error handling
+  - Token endpoint returns 200 but without access_token (or with an empty token).
+  - Assert client.Post fails with an “empty access_token” style error.
+3. Retry eligibility: 429 triggers retries
+  - Script 429, 429, 200 and assert retries happened and you end on success.
+4. Context cancellation mid-retry
+  - Script retriable failures, then cancel the context while it’s between retries.
+  - Assert the returned error is context.Canceled (or wraps it) and that no further HTTP calls occur after cancellation.
+5. Header correctness beyond auth
+  - Assert Content-Type is text/plain and Client-Id is set on every IGDB call.
+  - (Your success test already checks headers, but you can generalize it across retry attempts too.)
+
 ---
 
 ### Features
@@ -199,23 +217,13 @@ These JSON files are intended to be the **offline corpus** for later name-genera
   go test ./src/igdb/... -v
   ```
 
-- **Integration fetch test** (requires real IGDB credentials, may be slow / large):
+- **Unit tests** for the CLI/main package:
 
   ```bash
-  go test -v -run TestFetchAlternativeNames
+  go test . -v
   ```
 
-  This test:
-
-  - Fetches all `alternative_names`.
-  - Asserts an expected count (based on known snapshot).
-  - Writes to `data/alternative_names.json`.
-
-Use `-short` to skip this integration test:
-
-```bash
-go test -short ./...
-```
+Note: the repo no longer performs real IGDB network fetches as part of automated tests.
 
 ---
 
@@ -238,7 +246,7 @@ High‑level flow (for fetches):
    - Handles auth, retries, backoff, and low‑level HTTP transport.
 
 4. `igdb.Fetcher`
-   - Implements paging for specific IGDB entities (`games`, `genres`, etc.).
+   - Implements offset/limit paging for specific IGDB entities (`games`, `genres`, etc.).
 
 5. `igdb.Metrics` + `report.go`
    - Records and visualizes performance and reliability characteristics.
