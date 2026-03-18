@@ -217,23 +217,13 @@ These JSON files are intended to be the **offline corpus** for later name-genera
   go test ./src/igdb/... -v
   ```
 
-- **Integration fetch test** (requires real IGDB credentials, may be slow / large):
+- **Unit tests** for the CLI/main package:
 
   ```bash
-  go test -v -run TestFetchAlternativeNames
+  go test . -v
   ```
 
-  This test:
-
-  - Fetches all `alternative_names`.
-  - Asserts an expected count (based on known snapshot).
-  - Writes to `data/alternative_names.json`.
-
-Use `-short` to skip this integration test:
-
-```bash
-go test -short ./...
-```
+Note: the repo no longer performs real IGDB network fetches as part of automated tests.
 
 ---
 
@@ -256,7 +246,7 @@ High‑level flow (for fetches):
    - Handles auth, retries, backoff, and low‑level HTTP transport.
 
 4. `igdb.Fetcher`
-   - Implements paging for specific IGDB entities (`games`, `genres`, etc.).
+   - Implements offset/limit paging for specific IGDB entities (`games`, `genres`, etc.).
 
 5. `igdb.Metrics` + `report.go`
    - Records and visualizes performance and reliability characteristics.
