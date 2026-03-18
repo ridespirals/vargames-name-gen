@@ -31,7 +31,7 @@ func NewStdLogger(prefix string, w io.Writer) *StdLogger {
 	}
 	// return &StdLogger{Logger: log.New(w, prefix, log.Ltime|log.Lshortfile)}
 	return &StdLogger{Logger: log.NewWithOptions(w, log.Options{
-		ReportCaller:    true,
+		ReportCaller:    false,
 		ReportTimestamp: true,
 		TimeFormat:      time.StampMilli,
 		Prefix:          prefix,

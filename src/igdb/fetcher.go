@@ -56,7 +56,7 @@ func NewFetcher(client FetcherClient, entity Entity, opts FetcherOptions) *Fetch
 		entity: entity,
 		limit:  limit,
 		sem:    make(chan struct{}, concurrent),
-		log:    opts.Logger,
+		log:    opts.Logger, //.With("entity", entity),
 	}
 }
 
