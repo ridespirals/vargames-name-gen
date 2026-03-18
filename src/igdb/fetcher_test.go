@@ -30,10 +30,8 @@ type fakeFetcherClient struct {
 	maxLimit int
 
 	mu sync.Mutex
-
-	calls       int
+	seen        bool
 	firstOffset int
-	endpoints   []string
 
 	post func(ctx context.Context, endpoint string, body []byte) ([]byte, error)
 }
@@ -43,11 +41,10 @@ func (f *fakeFetcherClient) MaxLimit() int { return f.maxLimit }
 func (f *fakeFetcherClient) Post(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 	f.mu.Lock()
 	offset := parseOffset(string(body))
-	if f.calls == 0 {
+	if !f.seen {
+		f.seen = true
 		f.firstOffset = offset
 	}
-	f.calls++
-	f.endpoints = append(f.endpoints, endpoint)
 	post := f.post
 	f.mu.Unlock()
 
@@ -74,17 +71,14 @@ func TestFetcher_FetchAll_CombinesPages(t *testing.T) {
 		4: {items: []json.RawMessage{json.RawMessage(`{"id":5}`)}},
 	}
 
-	calledOffsets := make(map[int]int)
-	var calledMu sync.Mutex
+	var calledOffsets []int
 
 	fake := &fakeFetcherClient{
 		maxLimit:  10,
 		firstOffset: -1,
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			offset := parseOffset(string(body))
-			calledMu.Lock()
-			calledOffsets[offset]++
-			calledMu.Unlock()
+			calledOffsets = append(calledOffsets, offset)
 
 			resp, ok := responses[offset]
 			if !ok {
@@ -108,8 +102,14 @@ func TestFetcher_FetchAll_CombinesPages(t *testing.T) {
 	if len(results) != 5 {
 		t.Fatalf("expected 5 combined results, got %d", len(results))
 	}
-	if calledOffsets[6] != 0 {
-		t.Fatalf("expected no request for offset 6, got counts: %v", calledOffsets)
+	wantOffsets := []int{0, 2, 4}
+	if len(calledOffsets) != len(wantOffsets) {
+		t.Fatalf("expected %d requests, got %d (offsets: %v)", len(wantOffsets), len(calledOffsets), calledOffsets)
+	}
+	for i := range wantOffsets {
+		if calledOffsets[i] != wantOffsets[i] {
+			t.Fatalf("expected request offset[%d]=%d, got %d (all offsets: %v)", i, wantOffsets[i], calledOffsets[i], calledOffsets)
+		}
 	}
 }
 
@@ -149,19 +149,30 @@ func TestFetcher_FirstRequestOffsetZero_MultiEntities(t *testing.T) {
 		},
 	}
 
+	errCh := make(chan error, 2)
 	var wg sync.WaitGroup
-	run := func(ent Entity, fc *fakeFetcherClient) {
-		defer wg.Done()
-		fetcher := NewFetcher(fc, ent, FetcherOptions{Limit: 2})
-		if _, err := fetcher.FetchAll(context.Background()); err != nil {
-			t.Errorf("FetchAll %s: %v", ent, err)
-		}
-	}
 
 	wg.Add(2)
-	go run(EntityGenres, fakeGenres)
-	go run(EntityPlatforms, fakePlatforms)
+	go func() {
+		defer wg.Done()
+		fetcher := NewFetcher(fakeGenres, EntityGenres, FetcherOptions{Limit: 2})
+		_, err := fetcher.FetchAll(context.Background())
+		errCh <- err
+	}()
+	go func() {
+		defer wg.Done()
+		fetcher := NewFetcher(fakePlatforms, EntityPlatforms, FetcherOptions{Limit: 2})
+		_, err := fetcher.FetchAll(context.Background())
+		errCh <- err
+	}()
+
 	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("FetchAll: %v", err)
+		}
+	}
 
 	if fakeGenres.firstOffset != 0 {
 		t.Fatalf("expected first request offset 0 for genres, got %d", fakeGenres.firstOffset)

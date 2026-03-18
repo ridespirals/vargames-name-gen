@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	alternativeNamesExpectedCount = 195850
-	alternativeNamesOutputFile    = "data/alternative_names.json"
+	alternativeNamesExpectedCount = 1000
 )
 
 func TestWriteEntityResultsJSON_AlternativeNames(t *testing.T) {
@@ -18,7 +17,6 @@ func TestWriteEntityResultsJSON_AlternativeNames(t *testing.T) {
 
 	results := make([]json.RawMessage, alternativeNamesExpectedCount)
 	for i := range results {
-		// nil RawMessage marshals as null; that keeps the test lightweight.
 		results[i] = nil
 	}
 

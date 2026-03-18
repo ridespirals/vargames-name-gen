@@ -15,8 +15,6 @@ import (
 )
 
 type scriptedRoundTripper struct {
-	t *testing.T
-
 	statuses []int
 	bodies   []string
 
@@ -60,7 +58,7 @@ type scriptedRoute struct {
 	bodies   []string
 
 	checkHeaders func(req *http.Request, attempt int)
-	checkURL      func(req *http.Request)
+	checkURL     func(req *http.Request)
 }
 
 type pathScriptedRoundTripper struct {
@@ -123,7 +121,6 @@ func TestPost_Success(t *testing.T) {
 	}
 
 	rt := &scriptedRoundTripper{
-		t: t,
 		statuses: []int{http.StatusOK},
 		bodies:   []string{`[{"id":1,"name":"Game One"}]`},
 		checkHeaders: func(req *http.Request, attempt int) {
@@ -164,7 +161,6 @@ func TestPost_RetryThenSuccess(t *testing.T) {
 	rt := &scriptedRoundTripper{
 		statuses: []int{http.StatusInternalServerError, http.StatusOK},
 		bodies:   []string{"server error", `[]`},
-		t:         t,
 	}
 	client := NewClient(cfg, WithRetries(3), WithBackoff(1*time.Millisecond, 1*time.Millisecond))
 	client.http.Transport = rt
@@ -192,7 +188,6 @@ func TestPost_RetryExhausted(t *testing.T) {
 	rt := &scriptedRoundTripper{
 		statuses: []int{http.StatusGatewayTimeout, http.StatusGatewayTimeout, http.StatusGatewayTimeout},
 		bodies:   []string{"timeout", "timeout", "timeout"},
-		t:         t,
 	}
 	client := NewClient(cfg, WithRetries(2), WithBackoff(1*time.Millisecond, 1*time.Millisecond))
 	client.http.Transport = rt
@@ -217,7 +212,6 @@ func TestPost_NonRetriable(t *testing.T) {
 	rt := &scriptedRoundTripper{
 		statuses: []int{http.StatusBadRequest},
 		bodies:   []string{"bad request"},
-		t:         t,
 	}
 	client := NewClient(cfg, WithRetries(3))
 	client.http.Transport = rt
@@ -429,7 +423,6 @@ func TestPost_ContextCanceled(t *testing.T) {
 	rt := &scriptedRoundTripper{
 		statuses: []int{http.StatusInternalServerError},
 		bodies:   []string{"server error"},
-		t:         t,
 	}
 	client := NewClient(cfg, WithRetries(5), WithBackoff(10*time.Millisecond, 10*time.Millisecond))
 	client.http.Transport = rt
@@ -440,4 +433,3 @@ func TestPost_ContextCanceled(t *testing.T) {
 		t.Errorf("expected context.Canceled (or wrapped), got %v", err)
 	}
 }
-
