@@ -86,6 +86,7 @@ func main() {
 				fetcher := igdb.NewFetcher(client, igdb.Entity(entityStr), igdb.FetcherOptions{
 					Limit:         0,
 					MaxConcurrent: 4,
+					QueryPrefix:   igdb.QueryPrefixForEntity(igdb.Entity(entityStr)),
 					Logger:        logger,
 				})
 				runStart := time.Now()

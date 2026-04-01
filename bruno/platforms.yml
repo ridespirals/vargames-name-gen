@@ -14,8 +14,8 @@ http:
   body:
     type: text
     data: |-
-      fields *;
-      search "Playstation";
+      fields *, platform_type.name, websites.trusted, websites.url;
+      limit 100;
   auth: inherit
 
 settings:

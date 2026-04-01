@@ -64,7 +64,7 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 - **Fetchers**
   - `igdb.Fetcher`:
     - Pages through IGDB endpoints (e.g. `/games`, `/genres`, `/alternative_names`) using Apicalypse bodies:
-      - `fields *; limit <N>; offset <page * N>;`
+      - `<QueryPrefix> limit <N>; offset <page * N>;` (defaults to `fields *;`)
     - Walks pages **sequentially** for a given entity:
       - Starts at offset `0`.
       - Increments offset by `limit` each page.

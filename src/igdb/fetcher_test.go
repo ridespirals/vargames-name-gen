@@ -29,7 +29,7 @@ func parseOffset(body string) int {
 type fakeFetcherClient struct {
 	maxLimit int
 
-	mu sync.Mutex
+	mu          sync.Mutex
 	seen        bool
 	firstOffset int
 
@@ -74,7 +74,7 @@ func TestFetcher_FetchAll_CombinesPages(t *testing.T) {
 	var calledOffsets []int
 
 	fake := &fakeFetcherClient{
-		maxLimit:  10,
+		maxLimit:    10,
 		firstOffset: -1,
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			offset := parseOffset(string(body))
@@ -130,6 +130,33 @@ func TestFetcher_FirstRequestOffsetZero(t *testing.T) {
 	}
 	if fake.firstOffset != 0 {
 		t.Fatalf("expected first request offset 0, got %d", fake.firstOffset)
+	}
+}
+
+func TestFetcher_QueryPrefixPrepended(t *testing.T) {
+	var gotBody string
+
+	fake := &fakeFetcherClient{
+		maxLimit:    100,
+		firstOffset: -1,
+		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+			gotBody = string(body)
+			return []byte(`[]`), nil
+		},
+	}
+
+	fetcher := NewFetcher(fake, EntityGames, FetcherOptions{
+		Limit:       2,
+		QueryPrefix: "fields name",
+	})
+
+	if _, err := fetcher.FetchAll(context.Background()); err != nil {
+		t.Fatalf("FetchAll: %v", err)
+	}
+
+	want := "fields name; limit 2; offset 0;"
+	if gotBody != want {
+		t.Fatalf("body mismatch:\nwant: %q\ngot:  %q", want, gotBody)
 	}
 }
 

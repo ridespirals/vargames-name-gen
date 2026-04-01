@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"vargames-name-gen/src/config"
 )
@@ -21,6 +22,11 @@ type FetcherOptions struct {
 	Limit int
 	// MaxConcurrent limits concurrent page requests (0 = use default).
 	MaxConcurrent int
+	// QueryPrefix is the Apicalypse query fragment inserted before `limit` and `offset`.
+	// It should be semicolon-terminated (e.g. `fields *;`), but we'll normalize if not.
+	//
+	// If empty, defaults to `igdb.DefaultQueryPrefix` for the entity.
+	QueryPrefix string
 	// Logger is optional; when set, progress (pages completed, total items) is logged.
 	Logger Logger
 }
@@ -31,11 +37,12 @@ const (
 
 // Fetcher fetches all pages for an IGDB entity and combines results.
 type Fetcher struct {
-	client FetcherClient
-	entity Entity
-	limit  int
-	sem    chan struct{}
-	log    Logger
+	client      FetcherClient
+	entity      Entity
+	limit       int
+	queryPrefix string
+	sem         chan struct{}
+	log         Logger
 }
 
 // NewFetcher creates a fetcher for the given entity using the client's config for limit when not set in opts.
@@ -51,12 +58,20 @@ func NewFetcher(client FetcherClient, entity Entity, opts FetcherOptions) *Fetch
 	if concurrent <= 0 {
 		concurrent = defaultMaxConcurrent
 	}
+	queryPrefix := strings.TrimSpace(opts.QueryPrefix)
+	if queryPrefix == "" {
+		queryPrefix = QueryPrefixForEntity(entity)
+	}
+	if !strings.HasSuffix(queryPrefix, ";") {
+		queryPrefix += ";"
+	}
 	return &Fetcher{
-		client: client,
-		entity: entity,
-		limit:  limit,
-		sem:    make(chan struct{}, concurrent),
-		log:    opts.Logger,
+		client:      client,
+		entity:      entity,
+		limit:       limit,
+		queryPrefix: queryPrefix,
+		sem:         make(chan struct{}, concurrent),
+		log:         opts.Logger,
 	}
 }
 
@@ -81,7 +96,7 @@ func (f *Fetcher) FetchAll(ctx context.Context) ([]json.RawMessage, error) {
 		}
 
 		offset := page * f.limit
-		body := fmt.Sprintf("fields *; limit %d; offset %d;", f.limit, offset)
+		body := fmt.Sprintf("%s limit %d; offset %d;", f.queryPrefix, f.limit, offset)
 		out, err := f.client.Post(ctx, string(f.entity), []byte(body))
 		if err != nil {
 			return nil, fmt.Errorf("page %d (offset %d): %w", page, offset, err)

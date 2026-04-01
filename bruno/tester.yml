@@ -5,7 +5,7 @@ info:
 
 http:
   method: POST
-  url: "{{base_url}}/entity_types"
+  url: "{{base_url}}/reports"
   headers:
     - name: Client-Id
       value: "{{client_id}}"
@@ -13,10 +13,9 @@ http:
       value: Bearer {{access_token}}
   body:
     type: text
-    data: |-
-      fields *;
-
-      limit {{max_limit}};
+    data: |
+      fields *, report_type.*, entity_type.*, source_item_id, target_item_id;
+      limit 100;;q
   auth: inherit
 
 settings:

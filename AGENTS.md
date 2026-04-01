@@ -227,10 +227,13 @@ This document captures the current intent and design of the project so other dev
     - `FetcherOptions`:
       - `Limit` (per-page limit; default uses `client.MaxLimit()` which reflects `Config.MaxLimit`, default 500).
       - `MaxConcurrent` (reserved for future concurrency tuning; not currently used in `FetchAll`).
+      - `QueryPrefix`:
+        - Apicalypse query fragment inserted before the paging clauses (`limit`/`offset`).
+        - Defaults to `igdb.DefaultQueryPrefix` (currently `fields *;`).
       - `Logger` (optional, for progress logs).
     - `FetchAll(ctx)`:
       - Walks pages sequentially, starting at offset 0:
-        - `fields *; limit <Limit>; offset <page * Limit>;`.
+        - `<QueryPrefix> limit <Limit>; offset <page * Limit>;`.
       - Stops when:
         - A page returns zero results, or
         - A page returns fewer than `Limit` results.
