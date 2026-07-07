@@ -9,7 +9,7 @@ Replace the universal `fields *;` Apicalypse prefix with **per-entity fetch prof
 - [`QueryPrefixForEntity`](../src/igdb/entities.go) returns `DefaultQueryPrefix` (`fields *;`) for every entity
 - [`Fetcher`](../src/igdb/fetcher.go) appends `limit` / `offset` after the query prefix
 - [`bruno/games.yml`](../bruno/games.yml) requests rich nested fields; fetcher does not match this today
-- [`NAMES-PACKAGE.md`](./NAMES-PACKAGE.md) only needs `id`, `name`, `genres`, `platforms`, `checksum` for games
+- [`FORGE-PACKAGE.md`](./FORGE-PACKAGE.md) only needs `id`, `name`, `genres`, `platforms`, `checksum` for games
 - [`FETCH-ROBUSTNESS.md`](./FETCH-ROBUSTNESS.md) Phase D benefits from lightweight `id,checksum` profiles
 
 ## Proposed Architecture
@@ -116,6 +116,6 @@ Wire into [`main.go`](../main.go) → `FetcherOptions.QueryPrefix` via `ProfileF
 ## Related Plans
 
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — checksum profile powers Phase D
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — defines which fields are required
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — defines which fields are required
 - [LOCALIZATION.md](./LOCALIZATION.md) — `alternative_names` needs `comment` field in profile
 - [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) — fixtures should match minimal profile shape

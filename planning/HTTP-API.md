@@ -7,7 +7,7 @@ Expose the `names` package over a small HTTP API so game/character name generati
 ## Current Foundation
 
 - **CLI only:** `main.go` handles config validation and `-fetch`
-- **Planned dependency:** `src/names/` (see [NAMES-PACKAGE.md](./NAMES-PACKAGE.md)) — API should not be built before names M2 (basic `GenerateGameName`)
+- **Planned dependency:** `src/forge/` (see [FORGE-PACKAGE.md](./FORGE-PACKAGE.md)) — API should not be built before names M2 (basic `GenerateGameName`)
 - **Data source:** Pre-fetched JSON in `data/` (gitignored locally; must be present at server startup or mounted in deployment)
 - **No HTTP server code yet;** AGENTS.md suggests `src/httpapi/` or `src/server/`
 
@@ -26,7 +26,7 @@ flowchart TB
   subgraph startup [Startup]
     Config[config.Load]
   DataDir[Load data/ corpus]
-  Names[names.LoadFromDir]
+  Names[forge.LoadFromDir]
   Config --> Server
   DataDir --> Names --> Server[http.Server]
   end
@@ -210,6 +210,6 @@ No network listeners on random ports in CI — use `httptest` only.
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — core generation logic (hard dependency)
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — core generation logic (hard dependency)
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — keeps corpus fresh; meta JSON useful for `/meta`
 - [CI-INFRA.md](./CI-INFRA.md) — CI tests for handlers; deployment pipeline

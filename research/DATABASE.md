@@ -11,7 +11,7 @@
 - [planning/EMBEDDED-INDEX.md](../planning/EMBEDDED-INDEX.md) — optional SQLite corpus store (P3)
 - [planning/FETCH-ROBUSTNESS.md](../planning/FETCH-ROBUSTNESS.md) — incremental sync, checksums, metadata
 - [planning/HTTP-API.md](../planning/HTTP-API.md) — deployed REST generation service
-- [planning/NAMES-PACKAGE.md](../planning/NAMES-PACKAGE.md) — in-memory loading from `data/*.json`
+- [planning/FORGE-PACKAGE.md](../planning/FORGE-PACKAGE.md) — in-memory loading from `data/*.json`
 
 ---
 

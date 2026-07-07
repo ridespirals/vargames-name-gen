@@ -92,7 +92,7 @@ Document in README:
 Create GitHub Issues for:
 
 - Each FETCH-ROBUSTNESS phase (or epics with sub-tasks)
-- NAMES-PACKAGE milestones
+- FORGE-PACKAGE milestones
 - HTTP-API milestones
 - CI/Infra items
 
@@ -284,4 +284,4 @@ Unit test CI requires **no secrets**.
 
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — `-meta.json`, `-partial`, concurrent fetch improve CI fetch reliability
 - [HTTP-API.md](./HTTP-API.md) — deployment target for Phase 5
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — no CI changes needed beyond `go test`
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — no CI changes needed beyond `go test`

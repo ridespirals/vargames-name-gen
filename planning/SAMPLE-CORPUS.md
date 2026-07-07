@@ -9,7 +9,7 @@ Let developers and CI run the `names` package and HTTP handlers **without IGDB c
 - **Production data:** `data/` is gitignored; requires `-fetch` with Twitch credentials
 - **Tests:** [`main_test.go`](../main_test.go) uses in-memory fake results; no shared corpus fixtures yet
 - **Blocker:** Anyone cloning the repo cannot try name generation until they fetch from IGDB
-- **Planned consumer:** [`names.LoadFromDir`](./NAMES-PACKAGE.md) (not yet implemented)
+- **Planned consumer:** [`forge.LoadFromDir`](./FORGE-PACKAGE.md) (M1 implemented)
 
 ## Proposed Architecture
 
@@ -56,10 +56,10 @@ testdata/corpus/
 
 ## Integration Points
 
-### `names` package
+### `forge` package
 
 - `LoadFromDir("testdata/corpus")` must succeed with only required files present
-- Tests default to `testdata/corpus` via helper `names.TestCorpusDir(t)`
+- Tests default to `testdata/corpus` via helper `forge.TestCorpusDir(t)`
 
 ### CLI
 
@@ -86,7 +86,7 @@ Document in root README under a "Try without credentials" section (pointer only;
 | S1 | `testdata/corpus/` JSON fixtures for games, genres, platforms, characters | ~0.5 day |
 | S2 | Optional fixtures: alternative_names, collections, companies | ~0.25 day |
 | S3 | `testdata/corpus/README.md` with provenance | ~0.25 day |
-| S4 | `names` loader tests against fixtures | ~0.25 day (with NAMES-PACKAGE M1) |
+| S4 | `forge` loader tests against fixtures | ~0.25 day (with FORGE-PACKAGE M1) |
 | S5 | Root README pointer to sample corpus workflow | ~0.1 day |
 
 **Total estimate:** ~1–1.5 days (S1–S3 can ship before names package exists).
@@ -109,7 +109,7 @@ Document in root README under a "Try without credentials" section (pointer only;
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — primary consumer (M1 dependency)
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — primary consumer (M1 dependency)
 - [HTTP-API.md](./HTTP-API.md) — integration tests use sample corpus
 - [TEST-COVERAGE.md](./TEST-COVERAGE.md) — fixture conventions
 - [INTERACTIVE-UI.md](./INTERACTIVE-UI.md) — offline demo mode

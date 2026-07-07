@@ -14,7 +14,7 @@ Replace the growing flat-flag interface in [`main.go`](../main.go) with **discov
 
 Planned additions from other plans:
 
-- `-generate` ([NAMES-PACKAGE.md](./NAMES-PACKAGE.md))
+- `-generate` ([FORGE-PACKAGE.md](./FORGE-PACKAGE.md))
 - `-serve` ([HTTP-API.md](./HTTP-API.md))
 - `-report-index` ([CI-INFRA.md](./CI-INFRA.md))
 - `fetch --resume` ([FETCH-RESUME.md](./FETCH-RESUME.md))
@@ -46,7 +46,7 @@ vargames-name-gen validate
 vargames-name-gen fetch games,genres,platforms
 vargames-name-gen fetch games --profile=minimal --concurrent=4 --partial
 
-# Generate (after NAMES-PACKAGE)
+# Generate (after FORGE-PACKAGE)
 vargames-name-gen generate game --genre=12 --seed=42 --count=5
 vargames-name-gen generate character --count=3
 
@@ -139,7 +139,7 @@ Flags:
 | C1 | Dispatch skeleton + `validate` default | ~0.5 day |
 | C2 | `fetch` subcommand (migrate from `-fetch`) | ~0.5 day |
 | C3 | Deprecation shim for `-fetch=` | ~0.25 day |
-| C4 | `generate` subcommand | ~0.25 day (with NAMES-PACKAGE M6) |
+| C4 | `generate` subcommand | ~0.25 day (with FORGE-PACKAGE M6) |
 | C5 | `serve` subcommand | ~0.25 day (with HTTP-API H4) |
 | C6 | `report-index` subcommand | ~0.25 day |
 | C7 | `src/cli/` package extraction | ~0.5 day |
@@ -164,7 +164,7 @@ Flags:
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — `generate` subcommand (M6)
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — `generate` subcommand (M6)
 - [HTTP-API.md](./HTTP-API.md) — `serve` subcommand (H4)
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — fetch flags move under `fetch`
 - [FETCH-RESUME.md](./FETCH-RESUME.md) — `fetch --resume`

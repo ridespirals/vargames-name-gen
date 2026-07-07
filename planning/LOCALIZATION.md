@@ -8,7 +8,7 @@ Influence generated names by **language or region** using IGDB `alternative_name
 
 - [`alternative_names`](../bruno/alternative_names.yml) entity includes `name`, `game`, and nested `game.name`
 - IGDB `comment` field on alternative names often indicates region (e.g. `"EU"`, `"JP"`)
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) lists `alternative_names` as mutation tokens, not direct output
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) lists `alternative_names` as mutation tokens, not direct output
 - [FETCH-PROFILES.md](./FETCH-PROFILES.md) minimal profile should include `comment` on alt names
 - No locale parameter on generation or HTTP API today
 
@@ -112,7 +112,7 @@ vargames-name-gen generate game --locale=jp --count=5
 
 **Total estimate:** ~2–2.5 days.
 
-**Depends on:** NAMES-PACKAGE M1, FETCH-PROFILES minimal alt_names, NAME-QUALITY Q2.
+**Depends on:** FORGE-PACKAGE M1, FETCH-PROFILES minimal alt_names, NAME-QUALITY Q2.
 
 ## Open Decisions
 
@@ -133,7 +133,7 @@ vargames-name-gen generate game --locale=jp --count=5
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — alternative_names as mutation source
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — alternative_names as mutation source
 - [FETCH-PROFILES.md](./FETCH-PROFILES.md) — fetch `comment` field
 - [NAME-QUALITY.md](./NAME-QUALITY.md) — blocklist on output
 - [HTTP-API.md](./HTTP-API.md) — `locale` query param
