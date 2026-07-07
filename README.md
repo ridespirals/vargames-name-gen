@@ -85,7 +85,7 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 
 ### Requirements
 
-- Go **1.23** or newer (see `go.mod`).
+- Go **1.26** or newer (see `go.mod`).
 - IGDB/Twitch API credentials:
   - Create or use an existing application in the Twitch Developer Console.
   - Copy `Client ID` and `Client Secret` into a `.env` (see below).
@@ -189,6 +189,29 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
   - Retry logs with backoff durations.
   - Per-page progress logs from fetchers.
 
+#### Forging titles (no IGDB credentials)
+
+Try generation with the committed sample corpus:
+
+```bash
+go run ./cmd/forge title -seed=42 -count=5
+```
+
+Or via the main binary (skips IGDB config when using `generate`):
+
+```bash
+go run . generate title -seed=42 -count=5
+```
+
+Use `-data-dir=data` after fetching, or `VARGAMES_DATA_DIR` to override the default (`testdata/corpus` when present).
+
+Build the forge binary:
+
+```bash
+go build -o forge ./cmd/forge
+./forge title -count=3
+```
+
 ---
 
 ### Data & reports
@@ -205,11 +228,30 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
     - `data/alternative_names-report.html`
   - `data/` is git‑ignored.
 
-These JSON files are intended to be the **offline corpus** for later name-generation experimentation (e.g. in a future `names` package).
+These JSON files are the **offline corpus** for procedural generation in the [`forge`](src/forge/) package.
 
 ---
 
 ### Tests
+
+CI runs `go fix ./...` and fails if that would change any files — run it locally before pushing:
+
+```bash
+go fix ./...
+go test ./...
+```
+
+- **All packages**
+
+  ```bash
+  go test ./...
+  ```
+
+- **Unit tests** for the forge CLI and generation:
+
+  ```bash
+  go test ./src/cli/... -v
+  ```
 
 - **Unit tests** for the IGDB client and fetcher:
 

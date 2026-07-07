@@ -7,7 +7,7 @@ Provide an **optional SQLite backing store** for the IGDB corpus when in-memory 
 ## Current Foundation
 
 - Corpus lives as JSON arrays in `data/<entity>.json`
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) plans in-memory indexes built at `LoadFromDir` time
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) plans in-memory indexes built at `LoadFromDir` time
 - Character genre weighting (Phase 3) requires joining `characters.games[]` → `games.genres[]`
 - No database dependency in [`go.mod`](../go.mod) today (stdlib only)
 
@@ -141,7 +141,7 @@ See [CLI-STRUCTURE.md](./CLI-STRUCTURE.md).
 
 **Total estimate:** ~3–4 days.
 
-**Depends on:** [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) M3+; defer until profiling justifies.
+**Depends on:** [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) M3+; defer until profiling justifies.
 
 ## Open Decisions
 
@@ -163,7 +163,7 @@ See [CLI-STRUCTURE.md](./CLI-STRUCTURE.md).
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — primary consumer; M3 join complexity motivator
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — primary consumer; M3 join complexity motivator
 - [CLI-STRUCTURE.md](./CLI-STRUCTURE.md) — `index` subcommand
 - [FETCH-PROFILES.md](./FETCH-PROFILES.md) — lean JSON makes import fast
 - [LOCALIZATION.md](./LOCALIZATION.md) — `alternative_names.comment` column

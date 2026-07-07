@@ -87,7 +87,7 @@ testdata/
 | Package | Target | Priority |
 |---------|--------|----------|
 | `src/igdb` | ≥ 80% | P0 |
-| `src/names` | ≥ 75% | P0 (when exists) |
+| `src/forge` | ≥ 75% | P0 (when exists) |
 | `src/httpapi` | ≥ 70% | P1 |
 | `src/cli` | ≥ 60% | P1 |
 | `main` | smoke tests for dispatch | P2 |

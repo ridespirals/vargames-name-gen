@@ -76,12 +76,12 @@ func LoadEnv() error {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		i := strings.Index(line, "=")
-		if i < 0 {
+		before, after, ok := strings.Cut(line, "=")
+		if !ok {
 			return fmt.Errorf("%s:%d: invalid line (missing KEY=VALUE)", envFile, lineNum)
 		}
-		key := strings.TrimSpace(line[:i])
-		value := strings.TrimSpace(line[i+1:])
+		key := strings.TrimSpace(before)
+		value := strings.TrimSpace(after)
 		if key == "" {
 			return fmt.Errorf("%s:%d: empty key", envFile, lineNum)
 		}

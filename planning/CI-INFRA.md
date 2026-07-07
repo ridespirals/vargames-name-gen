@@ -8,7 +8,7 @@ Establish reliable automation around testing, visibility into fetch runs, and (e
 
 | Area | Today |
 |------|-------|
-| **CI** | `.github/workflows/ci-tests.yml` runs `go test -v ./...` on push/PR (Go 1.23, `robherley/go-test-action`) |
+| **CI** | `.github/workflows/ci-tests.yml` runs `go fix ./...` (must be clean), then `go test -v ./...` on push/PR (Go 1.26) |
 | **Secrets** | `.env` gitignored; CI does not need IGDB credentials (tests use mocks) |
 | **Data** | `data/` gitignored — fetch artifacts are local only |
 | **Reports** | Per-entity HTML in `data/<entity>-report.html` (generated at fetch time, not published) |
@@ -60,6 +60,7 @@ Add steps beyond bare `go test`:
 
 | Step | Command | Purpose |
 |------|---------|---------|
+| **go fix** | `go fix ./...` + `git diff --quiet` | Enforce Go modernizers (Go 1.26+); **implemented** |
 | Vet | `go vet ./...` | Static checks |
 | Format | `gofmt -l .` | Fail if unformatted (or add format check) |
 | Build | `go build -o /dev/null .` | Ensure main compiles |
@@ -92,7 +93,7 @@ Document in README:
 Create GitHub Issues for:
 
 - Each FETCH-ROBUSTNESS phase (or epics with sub-tasks)
-- NAMES-PACKAGE milestones
+- FORGE-PACKAGE milestones
 - HTTP-API milestones
 - CI/Infra items
 
@@ -284,4 +285,4 @@ Unit test CI requires **no secrets**.
 
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — `-meta.json`, `-partial`, concurrent fetch improve CI fetch reliability
 - [HTTP-API.md](./HTTP-API.md) — deployment target for Phase 5
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — no CI changes needed beyond `go test`
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — no CI changes needed beyond `go test`

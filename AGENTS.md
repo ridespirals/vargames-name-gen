@@ -28,7 +28,8 @@ This document captures the current intent and design of the project so other dev
 **Language / Tooling**
 
 - Go module: `vargames-name-gen`
-- Go version: `go 1.23`
+- Go version: `go 1.26`
+- After upgrading Go or editing code, run `go fix ./...` and commit any changes — CI fails if modernizers would modify the tree.
 - Follows recommendations from **Effective Go** (`https://go.dev/doc/effective_go`), especially:
   - Clear naming, small interfaces, value types where appropriate.
   - Explicit error handling with wrapped errors.
@@ -135,7 +136,7 @@ This document captures the current intent and design of the project so other dev
 
 - `go.mod`
   - Module: `vargames-name-gen`
-  - Go version: `1.23`
+  - Go version: `1.26`
 
 **Bruno collections**
 
@@ -180,7 +181,7 @@ This document captures the current intent and design of the project so other dev
   - Use human-readable, origin-identifying messages (`"igdb: get games: %w"`).
 - Package naming:
   - Lowercase, no underscores; short but evocative:
-    - Examples: `config`, `igdb`, `names`, `cli`, `httpapi`.
+    - Examples: `config`, `igdb`, `forge`, `cli`, `httpapi`.
 
 ---
 
@@ -256,12 +257,9 @@ This document captures the current intent and design of the project so other dev
     - Per-request records (`PostRecord`: endpoint, retries, duration).
   - Used by `main` and `report.go` to generate HTML fetch reports.
 
-- `src/names/` (not yet implemented)
-  - Logic for **name generation** using IGDB data:
-    - Simple baselines:
-      - Concatenate and mutate real titles.
-      - Markov-ish chains over real titles.
-    - Weighted by genre or other metadata.
+- `src/forge/` — corpus loader (`LoadFromDir`, minimal IGDB structs); see `planning/FORGE-PACKAGE.md`
+  - `src/forge/title/` — game titles, collections, subtitle/alt-name extras (generation in progress)
+  - `src/forge/identity/` — character and company names (generation in progress)
 
 - `src/httpapi/` or `src/server/` (not yet implemented)
   - HTTP handlers exposing:
@@ -282,13 +280,11 @@ These are **guidelines** meant to keep the project modular and testable.
 
 Good next steps for any developer or agent:
 
-1. **Leverage fetched data for name generation**
-   - Implement a `names` package that:
-     - Consumes `data/games.json`, `data/alternative_names.json`, etc.
-     - Produces game/character name suggestions using:
-       - Concatenation and simple mutation strategies.
-       - Markov-style models over existing names.
-     - Supports weighting by genre/platform using the fetched metadata.
+1. **Leverage fetched data for procedural generation**
+   - Extend `forge` / `forge/title` / `forge/identity`:
+     - Consumes `data/*.json` (or `testdata/corpus`)
+     - Produces titles, character names, etc. via concat/Markov strategies
+     - Supports weighting by genre/platform using fetched metadata
 
 2. **Add a small HTTP API**
    - Expose endpoints such as:
@@ -296,7 +292,7 @@ Good next steps for any developer or agent:
      - `GET /generate/character-name?...`.
    - Internally:
      - Load pre-fetched JSON (or a DB/embedded store) at startup.
-     - Delegate generation to the `names` package.
+     - Delegate generation to `forge/title` and `forge/identity`
 
 3. **Improve fetch robustness and configurability**
    - Make per-entity `MaxConcurrent` and `MaxLimit` configurable via flags/env.

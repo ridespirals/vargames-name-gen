@@ -1,0 +1,12 @@
+[
+  {"id": 1, "name": "Link", "games": [1942]},
+  {"id": 2, "name": "Mario", "games": [26758]},
+  {"id": 3, "name": "Zelda", "games": [1942]},
+  {"id": 4, "name": "Solaire of Astora", "games": [1266]},
+  {"id": 5, "name": "Malenia", "games": [119133]},
+  {"id": 6, "name": "Hornet", "games": [19465]},
+  {"id": 7, "name": "Madeline", "games": [11156]},
+  {"id": 8, "name": "Zagreus", "games": [26192]},
+  {"id": 9, "name": "Cloud Strife", "games": [7331]},
+  {"id": 10, "name": "Ryu", "games": [7334]}
+]
