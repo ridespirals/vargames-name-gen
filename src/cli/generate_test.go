@@ -8,6 +8,26 @@ import (
 	"vargames-name-gen/src/forge"
 )
 
+func TestGenerateIdentities_Deterministic(t *testing.T) {
+	dir := forge.TestCorpusDir(t)
+	names1, err := GenerateIdentities(IdentityConfig{DataDir: dir, Seed: 42, Count: 3})
+	if err != nil {
+		t.Fatalf("GenerateIdentities: %v", err)
+	}
+	names2, err := GenerateIdentities(IdentityConfig{DataDir: dir, Seed: 42, Count: 3})
+	if err != nil {
+		t.Fatalf("GenerateIdentities second run: %v", err)
+	}
+	if len(names1) != 3 {
+		t.Fatalf("got %d names, want 3", len(names1))
+	}
+	for i := range names1 {
+		if names1[i] != names2[i] {
+			t.Fatalf("seed 42 not deterministic: %q vs %q", names1[i], names2[i])
+		}
+	}
+}
+
 func TestGenerateTitles_Deterministic(t *testing.T) {
 	dir := forge.TestCorpusDir(t)
 	names1, err := GenerateTitles(TitleConfig{DataDir: dir, Seed: 42, Count: 3})
