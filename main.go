@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -19,6 +18,15 @@ import (
 
 const dataDir = "data"
 
+type entityFetchOutcome struct {
+	entity        string
+	result        igdb.FetchResult
+	wallClock     time.Duration
+	metrics       *igdb.Metrics
+	limit         int
+	maxConcurrent int
+}
+
 // parseEntityList splits a comma-separated list and returns non-empty trimmed entries.
 func parseEntityList(s string) []string {
 	var out []string
@@ -29,21 +37,6 @@ func parseEntityList(s string) []string {
 		}
 	}
 	return out
-}
-
-func writeEntityResultsJSON(entity string, results []json.RawMessage, dataDir string) (string, error) {
-	outPath := filepath.Join(dataDir, entity+".json")
-	raw, err := json.Marshal(results)
-	if err != nil {
-		return "", fmt.Errorf("marshal %s: %w", entity, err)
-	}
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return "", fmt.Errorf("mkdir %s: %w", dataDir, err)
-	}
-	if err := os.WriteFile(outPath, raw, 0644); err != nil {
-		return "", fmt.Errorf("write %s: %w", outPath, err)
-	}
-	return outPath, nil
 }
 
 func main() {
@@ -59,6 +52,7 @@ func main() {
 	fetchEntities := flag.String("fetch", "", "fetch entity/entities (comma-separated) and save to data/<entity>.json (e.g. -fetch=games, -fetch=games,genres,platforms)")
 	fetchLimit := flag.Int("fetch-limit", 0, "page size per IGDB request (default from config or IGDB_MAX_LIMIT)")
 	fetchConcurrent := flag.Int("fetch-concurrent", 0, "parallel pages within one entity fetch (default from config or IGDB_MAX_CONCURRENT)")
+	fetchPartial := flag.Bool("partial", false, "continue on entity/page failures; write .partial.json when some pages succeed")
 	flag.Parse()
 
 	cfg, err := config.Load()
@@ -83,11 +77,10 @@ func main() {
 		}
 		ctx := context.Background()
 		start := time.Now()
-		var errMu sync.Mutex
-		var firstErr error
+		outcomes := make([]entityFetchOutcome, 0, len(entities))
+		var outMu sync.Mutex
 		var wg sync.WaitGroup
 		for _, entityStr := range entities {
-			// capture local copy of entityStr to avoid race condition
 			wg.Go(func() {
 				metrics := igdb.NewMetrics(entityStr)
 				client := igdb.NewClient(cfg, igdb.WithLogger(logger), igdb.WithMetrics(metrics))
@@ -106,39 +99,64 @@ func main() {
 					Logger:        logger,
 				})
 				runStart := time.Now()
-				results, err := fetcher.FetchAll(ctx)
-				wallClock := time.Since(runStart)
-				if err != nil {
-					errMu.Lock()
-					if firstErr == nil {
-						firstErr = fmt.Errorf("fetch %s: %w", entityStr, err)
-					}
-					errMu.Unlock()
-					return
-				}
-				outPath, err := writeEntityResultsJSON(entityStr, results, dataDir)
-				if err != nil {
-					errMu.Lock()
-					if firstErr == nil {
-						firstErr = err
-					}
-					errMu.Unlock()
-					return
-				}
-				reportPath := filepath.Join(dataDir, entityStr+"-report.html")
-				if err := writeFetchReport(metrics, wallClock, len(results), reportPath); err != nil {
-					log.Printf("warning: could not write report for %s: %v", entityStr, err)
-				} else if enableLog {
-					log.Printf("report written to %s", reportPath)
-				}
-				log.Printf("wrote %d items to %s", len(results), outPath)
+				result := fetcher.FetchAllResult(ctx, *fetchPartial)
+				outMu.Lock()
+				outcomes = append(outcomes, entityFetchOutcome{
+					entity:        entityStr,
+					result:        result,
+					wallClock:     time.Since(runStart),
+					metrics:       metrics,
+					limit:         limit,
+					maxConcurrent: maxConcurrent,
+				})
+				outMu.Unlock()
 			})
 		}
 		wg.Wait()
-		if firstErr != nil {
-			log.Fatalf("%v", firstErr)
+
+		hadFailure := false
+		for _, out := range outcomes {
+			log.Print(formatFetchSummary(out.entity, out.result))
+
+			if err := writeFetchMeta(out.entity, out.result, out.wallClock, out.limit, out.maxConcurrent, dataDir); err != nil {
+				log.Printf("warning: could not write meta for %s: %v", out.entity, err)
+			}
+
+			if out.result.Err != nil && len(out.result.Items) == 0 {
+				hadFailure = true
+				reportPath := filepath.Join(dataDir, out.entity+"-report.html")
+				if err := writeFetchReport(out.metrics, out.wallClock, 0, reportPath); err != nil {
+					log.Printf("warning: could not write report for %s: %v", out.entity, err)
+				}
+				continue
+			}
+
+			partialFile := out.result.Err != nil
+			outPath, err := writeEntityResultsJSONAt(out.entity, out.result.Items, dataDir, partialFile)
+			if err != nil {
+				log.Printf("%s: FAILED writing output: %v", out.entity, err)
+				hadFailure = true
+				continue
+			}
+			if out.result.Err != nil {
+				hadFailure = true
+				log.Printf("wrote %d items to %s (partial)", len(out.result.Items), outPath)
+			} else {
+				log.Printf("wrote %d items to %s", len(out.result.Items), outPath)
+			}
+
+			reportPath := filepath.Join(dataDir, out.entity+"-report.html")
+			if err := writeFetchReport(out.metrics, out.wallClock, len(out.result.Items), reportPath); err != nil {
+				log.Printf("warning: could not write report for %s: %v", out.entity, err)
+			} else if enableLog {
+				log.Printf("report written to %s", reportPath)
+			}
 		}
+
 		log.Printf("fetched %d entities in %s", len(entities), time.Since(start).Round(time.Millisecond))
+		if hadFailure {
+			os.Exit(1)
+		}
 		return
 	}
 
