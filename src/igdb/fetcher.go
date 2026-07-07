@@ -159,12 +159,9 @@ func (f *Fetcher) fetchAllConcurrent(ctx context.Context, count int) ([]json.Raw
 	resultsCh := make(chan pageResult, pages)
 	var wg sync.WaitGroup
 
-	for page := 0; page < pages; page++ {
-		page := page
+	for page := range pages {
 		offset := page * f.limit
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 
 			select {
 			case f.sem <- struct{}{}:
@@ -183,7 +180,7 @@ func (f *Fetcher) fetchAllConcurrent(ctx context.Context, count int) ([]json.Raw
 
 			items, err := f.fetchPage(ctx, page, offset)
 			resultsCh <- pageResult{page: page, items: items, err: err}
-		}()
+		})
 	}
 
 	go func() {

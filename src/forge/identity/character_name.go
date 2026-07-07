@@ -23,7 +23,7 @@ func (g *Generator) CharacterName(opts Options) (string, error) {
 
 	const maxAttempts = 32
 	var lastErr error
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		name, err := generateIdentity(rng, pool, existing, strategy)
 		if err != nil {
 			lastErr = err

@@ -1,6 +1,10 @@
 package title
 
-import "vargames-name-gen/src/forge"
+import (
+	"slices"
+
+	"vargames-name-gen/src/forge"
+)
 
 func filterGamePool(games []forge.Game, genreID *int) []forge.Game {
 	if genreID == nil {
@@ -28,10 +32,5 @@ func gameNames(games []forge.Game) []string {
 }
 
 func containsInt(values []int, want int) bool {
-	for _, v := range values {
-		if v == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, want)
 }

@@ -28,7 +28,8 @@ This document captures the current intent and design of the project so other dev
 **Language / Tooling**
 
 - Go module: `vargames-name-gen`
-- Go version: `go 1.23`
+- Go version: `go 1.26`
+- After upgrading Go or editing code, run `go fix ./...` and commit any changes — CI fails if modernizers would modify the tree.
 - Follows recommendations from **Effective Go** (`https://go.dev/doc/effective_go`), especially:
   - Clear naming, small interfaces, value types where appropriate.
   - Explicit error handling with wrapped errors.
@@ -135,7 +136,7 @@ This document captures the current intent and design of the project so other dev
 
 - `go.mod`
   - Module: `vargames-name-gen`
-  - Go version: `1.23`
+  - Go version: `1.26`
 
 **Bruno collections**
 

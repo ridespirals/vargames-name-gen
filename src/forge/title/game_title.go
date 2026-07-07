@@ -23,7 +23,7 @@ func (g *Generator) GameTitle(opts Options) (string, error) {
 
 	const maxAttempts = 32
 	var lastErr error
-	for i := 0; i < maxAttempts; i++ {
+	for range maxAttempts {
 		title, err := generateTitle(rng, pool, existing, strategy)
 		if err != nil {
 			lastErr = err

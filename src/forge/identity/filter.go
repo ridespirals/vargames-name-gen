@@ -1,6 +1,10 @@
 package identity
 
-import "vargames-name-gen/src/forge"
+import (
+	"slices"
+
+	"vargames-name-gen/src/forge"
+)
 
 func filterCharacterPool(characters []forge.Character, genreID *int, gameGenres map[int][]int) []forge.Character {
 	if genreID == nil {
@@ -44,10 +48,5 @@ func characterNames(characters []forge.Character) []string {
 }
 
 func containsInt(values []int, want int) bool {
-	for _, v := range values {
-		if v == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, want)
 }

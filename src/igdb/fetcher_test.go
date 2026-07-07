@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,7 +53,8 @@ func (f *fakeFetcherClient) Count(ctx context.Context, entity Entity) (int, erro
 	return *f.count, nil
 }
 
-func intPtr(n int) *int { return &n }
+//go:fix inline
+func intPtr(n int) *int { return new(n) }
 
 func (f *fakeFetcherClient) Post(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 	f.mu.Lock()
@@ -310,7 +311,7 @@ func TestFetcher_FetchAll_ConcurrentMatchesSequentialFixture(t *testing.T) {
 	fake := &fakeFetcherClient{
 		maxLimit:    10,
 		firstOffset: -1,
-		count:       intPtr(5),
+		count:       new(5),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			offset := parseOffset(string(body))
 			mu.Lock()
@@ -339,7 +340,7 @@ func TestFetcher_FetchAll_ConcurrentMatchesSequentialFixture(t *testing.T) {
 
 	sortInts := func(in []int) []int {
 		out := append([]int(nil), in...)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		return out
 	}
 	got := sortInts(calledOffsets)
@@ -358,7 +359,7 @@ func TestFetcher_FetchAll_CountZeroSkipsPost(t *testing.T) {
 	postCalled := false
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(0),
+		count:    new(0),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			postCalled = true
 			return []byte(`[]`), nil
@@ -407,7 +408,7 @@ func TestFetcher_FetchAll_CountFallbackUsesSequential(t *testing.T) {
 func TestFetcher_FetchAll_ContextCanceledDuringConcurrent(t *testing.T) {
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(1000),
+		count:    new(1000),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			select {
 			case <-ctx.Done():

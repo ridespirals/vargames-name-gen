@@ -9,13 +9,13 @@ import (
 
 // Logger is used for optional progress and debug logging. When nil, no logging is performed.
 type Logger interface {
-	Logf(format string, args ...interface{})
+	Logf(format string, args ...any)
 }
 
 // NoOpLogger discards all log output.
 type NoOpLogger struct{}
 
-func (NoOpLogger) Logf(string, ...interface{}) {}
+func (NoOpLogger) Logf(string, ...any) {}
 
 // StdLogger writes to an io.Writer with a prefix (e.g. "igdb ").
 type StdLogger struct {
@@ -32,7 +32,7 @@ func NewStdLogger(prefix string, w io.Writer) *StdLogger {
 }
 
 // Logf implements Logger.
-func (s *StdLogger) Logf(format string, args ...interface{}) {
+func (s *StdLogger) Logf(format string, args ...any) {
 	s.Output(2, fmt.Sprintf(format, args...))
 }
 
@@ -43,7 +43,7 @@ type VerboseLogger struct {
 }
 
 // Logf implements Logger. No-op when Enabled is false.
-func (v *VerboseLogger) Logf(format string, args ...interface{}) {
+func (v *VerboseLogger) Logf(format string, args ...any) {
 	if !v.Enabled || v.Logger == nil {
 		return
 	}

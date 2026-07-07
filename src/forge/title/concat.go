@@ -16,7 +16,7 @@ func concatTitle(rng *rand.Rand, pool []string, existing map[string]struct{}) st
 		return mutateSingleTitle(rng, pool[0], existing)
 	}
 
-	for attempt := 0; attempt < 20; attempt++ {
+	for range 20 {
 		a := pool[rng.IntN(len(pool))]
 		b := pool[rng.IntN(len(pool))]
 		if strings.EqualFold(a, b) {

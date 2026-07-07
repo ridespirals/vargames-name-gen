@@ -85,7 +85,7 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 
 ### Requirements
 
-- Go **1.23** or newer (see `go.mod`).
+- Go **1.26** or newer (see `go.mod`).
 - IGDB/Twitch API credentials:
   - Create or use an existing application in the Twitch Developer Console.
   - Copy `Client ID` and `Client Secret` into a `.env` (see below).
@@ -233,6 +233,19 @@ These JSON files are the **offline corpus** for procedural generation in the [`f
 ---
 
 ### Tests
+
+CI runs `go fix ./...` and fails if that would change any files — run it locally before pushing:
+
+```bash
+go fix ./...
+go test ./...
+```
+
+- **All packages**
+
+  ```bash
+  go test ./...
+  ```
 
 - **Unit tests** for the forge CLI and generation:
 

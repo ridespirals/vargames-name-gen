@@ -22,7 +22,7 @@ const dataDir = "data"
 // parseEntityList splits a comma-separated list and returns non-empty trimmed entries.
 func parseEntityList(s string) []string {
 	var out []string
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		e := strings.TrimSpace(part)
 		if e != "" {
 			out = append(out, e)
@@ -88,10 +88,7 @@ func main() {
 		var wg sync.WaitGroup
 		for _, entityStr := range entities {
 			// capture local copy of entityStr to avoid race condition
-			entityStr := entityStr
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				metrics := igdb.NewMetrics(entityStr)
 				client := igdb.NewClient(cfg, igdb.WithLogger(logger), igdb.WithMetrics(metrics))
 				limit := *fetchLimit
@@ -135,7 +132,7 @@ func main() {
 					log.Printf("report written to %s", reportPath)
 				}
 				log.Printf("wrote %d items to %s", len(results), outPath)
-			}()
+			})
 		}
 		wg.Wait()
 		if firstErr != nil {

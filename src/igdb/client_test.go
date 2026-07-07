@@ -141,7 +141,7 @@ func TestPost_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Post: %v", err)
 	}
-	var arr []map[string]interface{}
+	var arr []map[string]any
 	if err := json.Unmarshal(out, &arr); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestPost_MaxRetryDurationStopsRetries(t *testing.T) {
 
 	statuses := make([]int, 100)
 	bodies := make([]string, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		statuses[i] = http.StatusInternalServerError
 		bodies[i] = "server error"
 	}

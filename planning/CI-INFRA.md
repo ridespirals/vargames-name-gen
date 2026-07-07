@@ -8,7 +8,7 @@ Establish reliable automation around testing, visibility into fetch runs, and (e
 
 | Area | Today |
 |------|-------|
-| **CI** | `.github/workflows/ci-tests.yml` runs `go test -v ./...` on push/PR (Go 1.23, `robherley/go-test-action`) |
+| **CI** | `.github/workflows/ci-tests.yml` runs `go fix ./...` (must be clean), then `go test -v ./...` on push/PR (Go 1.26) |
 | **Secrets** | `.env` gitignored; CI does not need IGDB credentials (tests use mocks) |
 | **Data** | `data/` gitignored — fetch artifacts are local only |
 | **Reports** | Per-entity HTML in `data/<entity>-report.html` (generated at fetch time, not published) |
@@ -60,6 +60,7 @@ Add steps beyond bare `go test`:
 
 | Step | Command | Purpose |
 |------|---------|---------|
+| **go fix** | `go fix ./...` + `git diff --quiet` | Enforce Go modernizers (Go 1.26+); **implemented** |
 | Vet | `go vet ./...` | Static checks |
 | Format | `gofmt -l .` | Fail if unformatted (or add format check) |
 | Build | `go build -o /dev/null .` | Ensure main compiles |
