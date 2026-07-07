@@ -11,14 +11,16 @@ Replace the growing flat-flag interface in [`main.go`](../main.go) with **discov
 | (none) | Validate config; print hello message |
 | `-fetch=entities` | Fetch IGDB entities to `data/` |
 | `-verbose` | Enable logging |
+| `generate title` | Forge game titles (no IGDB credentials) — via [`src/cli/generate.go`](../src/cli/generate.go) |
+| `cmd/forge` | Standalone binary for forge-only dev loop (same logic as `generate`) |
 
-Planned additions from other plans:
+Planned additions:
 
-- `-generate` ([NAMES-PACKAGE.md](./NAMES-PACKAGE.md))
 - `-serve` ([HTTP-API.md](./HTTP-API.md))
 - `-report-index` ([CI-INFRA.md](./CI-INFRA.md))
 - `fetch --resume` ([FETCH-RESUME.md](./FETCH-RESUME.md))
 - `index` ([EMBEDDED-INDEX.md](./EMBEDDED-INDEX.md))
+- Full subcommand dispatch (migrate `-fetch` → `fetch`)
 
 Flat flags become unwieldy and hard to document.
 
@@ -27,12 +29,14 @@ Flat flags become unwieldy and hard to document.
 ```mermaid
 flowchart TB
   Main[main.go] --> Dispatch[subcommand dispatch]
+  ForgeBin[cmd/forge] --> GeneratePkg[src/cli/generate.go]
+  Dispatch --> Generate[generate - implemented]
   Dispatch --> Validate[validate / default]
-  Dispatch --> Fetch[fetch]
-  Dispatch --> Generate[generate]
-  Dispatch --> Serve[serve]
-  Dispatch --> ReportIndex[report-index]
-  Dispatch --> Index[index - future]
+  Dispatch --> Fetch[fetch - planned]
+  Dispatch --> Serve[serve - planned]
+  Dispatch --> ReportIndex[report-index - planned]
+  Generate --> GeneratePkg
+  ForgeBin --> GeneratePkg
 ```
 
 ## Target UX
@@ -46,8 +50,16 @@ vargames-name-gen validate
 vargames-name-gen fetch games,genres,platforms
 vargames-name-gen fetch games --profile=minimal --concurrent=4 --partial
 
-# Generate (after NAMES-PACKAGE)
-vargames-name-gen generate game --genre=12 --seed=42 --count=5
+# Generate (implemented — partial M6)
+
+# Via main binary (skips IGDB config load)
+vargames-name-gen generate title -seed=42 -count=5
+
+# Via forge binary (no IGDB credentials ever)
+go run ./cmd/forge title -seed=42 -count=5
+forge title -data-dir=data -strategy=concat
+
+# Future
 vargames-name-gen generate character --count=3
 
 # Serve HTTP API (after HTTP-API)
@@ -80,20 +92,20 @@ vargames-name-gen fetch games --resume
 
 **Option A (minimal):** Keep all logic in `main.go` + `cli.go` at repo root
 
-**Option B (cleaner):** `src/cli/` with one file per subcommand
-
-**Recommendation:** Option B once `fetch` moves out of `main.go`; start with `main.go` + `cli_dispatch.go`.
+**Option B (in progress):** `src/cli/` with one file per subcommand — **`generate.go` and `flags.go` implemented**.
 
 ```
 src/cli/
-  cli.go            # Run(args []string) error
-  fetch.go
-  generate.go       # later
-  serve.go          # later
-  flags.go          # shared Verbose, DataDir
+  flags.go          # DefaultDataDir, VARGAMES_DATA_DIR
+  generate.go       # RunGenerate, RunForge, GenerateTitles
+  generate_test.go
+  fetch.go          # planned
+  serve.go          # planned
 ```
 
-`main.go` becomes: load config, `cli.Run(os.Args[1:])`.
+`cmd/forge/main.go` calls `cli.RunForge` for a credentials-free dev binary.
+
+`main.go` delegates `generate` to `cli.RunGenerate` before `config.Load()`.
 
 ## Shared Configuration
 
@@ -134,15 +146,15 @@ Flags:
 
 ## Milestones
 
-| Milestone | Deliverable | Effort |
-|-----------|-------------|--------|
-| C1 | Dispatch skeleton + `validate` default | ~0.5 day |
-| C2 | `fetch` subcommand (migrate from `-fetch`) | ~0.5 day |
-| C3 | Deprecation shim for `-fetch=` | ~0.25 day |
-| C4 | `generate` subcommand | ~0.25 day (with NAMES-PACKAGE M6) |
-| C5 | `serve` subcommand | ~0.25 day (with HTTP-API H4) |
-| C6 | `report-index` subcommand | ~0.25 day |
-| C7 | `src/cli/` package extraction | ~0.5 day |
+| Milestone | Deliverable | Effort | Status |
+|-----------|-------------|--------|--------|
+| C1 | Dispatch skeleton + `validate` default | ~0.5 day | partial (`generate` only) |
+| C2 | `fetch` subcommand (migrate from `-fetch`) | ~0.5 day | |
+| C3 | Deprecation shim for `-fetch=` | ~0.25 day | |
+| C4 | `generate` subcommand + `cmd/forge` | ~0.25 day | **done** |
+| C5 | `serve` subcommand | ~0.25 day | (with HTTP-API H4) |
+| C6 | `report-index` subcommand | ~0.25 day | |
+| C7 | `src/cli/` package extraction (fetch) | ~0.5 day | partial |
 
 **Total estimate:** ~2–2.5 days across multiple feature landings.
 
@@ -164,7 +176,7 @@ Flags:
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — `generate` subcommand (M6)
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — `generate` subcommand (M6)
 - [HTTP-API.md](./HTTP-API.md) — `serve` subcommand (H4)
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — fetch flags move under `fetch`
 - [FETCH-RESUME.md](./FETCH-RESUME.md) — `fetch --resume`

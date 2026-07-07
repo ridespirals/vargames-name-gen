@@ -11,7 +11,7 @@ For project overview and setup, see the root [README.md](../README.md) and [AGEN
 | Plan | One-liner | Priority |
 |------|-----------|----------|
 | [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) | Concurrent fetch, partial results, incremental sync | P0 |
-| [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) | Core name generation library | P0 |
+| [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) | Procedural generation library (`forge`, `title`, `identity`) | P0 |
 | [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) | Offline dev corpus without IGDB credentials | P0 |
 | [TEST-COVERAGE.md](./TEST-COVERAGE.md) | Test strategy and client gap closure | P0 |
 | [FETCH-PROFILES.md](./FETCH-PROFILES.md) | Per-entity IGDB field selection | P1 |
@@ -34,7 +34,7 @@ For project overview and setup, see the root [README.md](../README.md) and [AGEN
 flowchart TB
   subgraph p0 [P0 Foundation]
     FR[FETCH-ROBUSTNESS]
-    NP[NAMES-PACKAGE]
+    FG[FORGE-PACKAGE]
     SC[SAMPLE-CORPUS]
     TC[TEST-COVERAGE]
   end
@@ -62,18 +62,18 @@ flowchart TB
   FR --> FP
   FR --> FRES
   FR --> OBS
-  NP --> NQ
-  NP --> CLI
-  SC --> NP
+  FG --> NQ
+  FG --> CLI
+  SC --> FG
   SC --> TC
-  NP --> API
+  FG --> API
   NQ --> API
   API --> OAPI
   API --> UI
   API --> CI
   FP --> LOC
-  NP --> LOC
-  NP --> SQL
+  FG --> LOC
+  FG --> SQL
   CLI --> API
   OBS --> CI
   TC --> CI
@@ -92,7 +92,7 @@ flowchart TB
 
 ### Wave 2 — Name generation
 
-5. [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) M1–M4 (load, concat, genre filter, characters)
+5. [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) M1–M4 (load, title concat, genre filter, identity)
 6. [NAME-QUALITY.md](./NAME-QUALITY.md) filters before any public API
 7. [CLI-STRUCTURE.md](./CLI-STRUCTURE.md) `fetch` + `generate` subcommands
 8. [OBSERVABILITY.md](./OBSERVABILITY.md) slog + status in metrics/reports

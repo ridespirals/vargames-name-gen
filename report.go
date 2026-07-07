@@ -154,6 +154,6 @@ type stringBuilder struct {
 	s string
 }
 
-func (b *stringBuilder) w(f string, a ...interface{}) {
+func (b *stringBuilder) w(f string, a ...any) {
 	b.s += fmt.Sprintf(f, a...)
 }

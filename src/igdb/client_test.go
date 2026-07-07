@@ -141,7 +141,7 @@ func TestPost_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Post: %v", err)
 	}
-	var arr []map[string]interface{}
+	var arr []map[string]any
 	if err := json.Unmarshal(out, &arr); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestPost_MaxRetryDurationStopsRetries(t *testing.T) {
 
 	statuses := make([]int, 100)
 	bodies := make([]string, 100)
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		statuses[i] = http.StatusInternalServerError
 		bodies[i] = "server error"
 	}
@@ -431,5 +431,107 @@ func TestPost_ContextCanceled(t *testing.T) {
 	_, err := client.Post(ctx, "games", nil)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled (or wrapped), got %v", err)
+	}
+}
+
+func TestCount_Success(t *testing.T) {
+	cfg := config.Config{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		BaseURL:      "https://example.test",
+		AccessToken:  "test-token",
+		MaxLimit:     500,
+	}
+
+	rt := &pathScriptedRoundTripper{
+		t: t,
+		routes: map[string]scriptedRoute{
+			"/games/count": {
+				statuses: []int{http.StatusOK},
+				bodies:   []string{`{"count":350123}`},
+				checkHeaders: func(req *http.Request, attempt int) {
+					if req.Method != http.MethodGet {
+						t.Fatalf("expected GET, got %s", req.Method)
+					}
+					if req.Header.Get("Authorization") != "Bearer test-token" || req.Header.Get("Client-Id") != "cid" {
+						t.Fatalf("missing or wrong auth headers")
+					}
+				},
+			},
+		},
+		attempts: make(map[string]int),
+	}
+
+	client := NewClient(cfg, WithRetries(1))
+	client.http.Transport = rt
+
+	n, err := client.Count(context.Background(), EntityGames)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 350123 {
+		t.Fatalf("Count = %d, want 350123", n)
+	}
+}
+
+func TestCount_RetryThenSuccess(t *testing.T) {
+	cfg := config.Config{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		BaseURL:      "https://example.test",
+		AccessToken:  "test-token",
+		MaxLimit:     500,
+	}
+
+	rt := &pathScriptedRoundTripper{
+		t: t,
+		routes: map[string]scriptedRoute{
+			"/genres/count": {
+				statuses: []int{http.StatusTooManyRequests, http.StatusOK},
+				bodies:   []string{"rate limited", `{"count":23}`},
+			},
+		},
+		attempts: make(map[string]int),
+	}
+
+	client := NewClient(cfg, WithRetries(3), WithBackoff(1*time.Millisecond, 1*time.Millisecond))
+	client.http.Transport = rt
+
+	n, err := client.Count(context.Background(), EntityGenres)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if n != 23 {
+		t.Fatalf("Count = %d, want 23", n)
+	}
+	if rt.attempts["/genres/count"] != 2 {
+		t.Fatalf("expected 2 attempts, got %d", rt.attempts["/genres/count"])
+	}
+}
+
+func TestCount_ZeroCount(t *testing.T) {
+	n, err := parseCountResponse([]byte(`{"count":0}`))
+	if err != nil {
+		t.Fatalf("parseCountResponse: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("got %d, want 0", n)
+	}
+}
+
+func TestCount_BareIntegerResponse(t *testing.T) {
+	n, err := parseCountResponse([]byte(`42`))
+	if err != nil {
+		t.Fatalf("parseCountResponse: %v", err)
+	}
+	if n != 42 {
+		t.Fatalf("got %d, want 42", n)
+	}
+}
+
+func TestCount_InvalidResponse(t *testing.T) {
+	_, err := parseCountResponse([]byte(`not-json`))
+	if err == nil {
+		t.Fatal("expected error for invalid count response")
 	}
 }

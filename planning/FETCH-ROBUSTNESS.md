@@ -177,17 +177,17 @@ Documented in README as two competing approaches:
 | Out-of-order page merge bugs | Sort by offset; test against golden sequential output |
 | Count endpoint drift vs actual pages | Log mismatch; fall back to sequential |
 | Checksum approach more requests than full pull | Benchmark on small entity before committing |
-| Partial JSON files confuse `names` loader | `names` loads only `*.json` excluding `*.partial.json`; document clearly |
+| Partial JSON files confuse `forge` loader | `forge` loads only `*.json` excluding `*.partial.json`; document clearly |
 
 ## Suggested Execution Order (Cross-Plan)
 
 1. **Phase A** — concurrent fetch + config (faster corpus, no API change for names)
-2. **NAMES-PACKAGE M1–M4** — names package on stable `data/`
+2. **FORGE-PACKAGE M1–M4** — forge library on stable `data/`
 3. **Phase B–C** — partial results + meta (helps iterative name tuning)
-4. **NAMES-PACKAGE M5–M6** — Markov + CLI
+4. **FORGE-PACKAGE M5–M6** — Markov + CLI
 5. **Phase D** — incremental fetch once re-fetching becomes routine
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — consumes `data/*.json` output
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — consumes `data/*.json` output
 - [CI-INFRA.md](./CI-INFRA.md) — CI for fetch tests; GitHub Pages for reports

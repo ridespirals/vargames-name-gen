@@ -6,7 +6,7 @@ Apply post-generation filtering so names returned by the CLI and HTTP API are **
 
 ## Current Foundation
 
-- [`NAMES-PACKAGE.md`](./NAMES-PACKAGE.md) plans concat/Markov strategies with basic reject rules (length, exact corpus match)
+- [`FORGE-PACKAGE.md`](./FORGE-PACKAGE.md) plans concat/Markov strategies with basic reject rules (length, exact corpus match)
 - No dedicated quality layer; no profanity handling; no batch deduplication
 - [HTTP-API.md](./HTTP-API.md) will expose generation publicly — quality gates are a prerequisite for deploy
 
@@ -24,7 +24,7 @@ flowchart LR
 ## Package Layout
 
 ```
-src/names/
+src/forge/
   quality/
     filter.go       # Filter interface, Chain, Options
     length.go       # min/max length, charset rules
@@ -34,7 +34,7 @@ src/names/
     quality_test.go
 ```
 
-Or flat: `src/names/filter.go` if the package stays small (prefer subpackage if profanity list is large).
+Or flat: `src/forge/filter.go` if the package stays small (prefer subpackage if profanity list is large).
 
 ## Filter Rules (v1)
 
@@ -50,7 +50,7 @@ Or flat: `src/names/filter.go` if the package stays small (prefer subpackage if 
 
 ## Profanity Approach
 
-- **Embedded blocklist** file: `src/names/quality/profanity_en.txt` (or similar)
+- **Embedded blocklist** file: `src/forge/quality/profanity_en.txt` (or similar)
 - No external API calls; works offline
 - `go:embed` for the list
 - Levels: `off`, `standard`, `strict` (substring vs word-boundary)
@@ -109,7 +109,7 @@ Never return a name that failed any enabled filter.
 
 **Total estimate:** ~2–2.5 days.
 
-**Depends on:** [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) M2.
+**Depends on:** [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) M2.
 
 ## Open Decisions
 
@@ -130,7 +130,7 @@ Never return a name that failed any enabled filter.
 
 ## Related Plans
 
-- [NAMES-PACKAGE.md](./NAMES-PACKAGE.md) — generation strategies feed the filter chain
+- [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — generation strategies feed the filter chain
 - [HTTP-API.md](./HTTP-API.md) — must not deploy without Q5+
 - [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) — quality tests use fixtures
 - [CI-INFRA.md](./CI-INFRA.md) — no special CI needs; unit tests only

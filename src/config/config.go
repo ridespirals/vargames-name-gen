@@ -21,9 +21,10 @@ type Config struct {
 	// Most callers should prefer using client credentials flow instead.
 	AccessToken string
 	// MaxLimit is the default "limit" (page size) to use in IGDB queries.
-	// IGDB allows up to 500 results per page; we default to a smaller value
-	// (200) for reliability unless overridden.
+	// IGDB allows up to 500 results per page; we default to 500 unless overridden.
 	MaxLimit int
+	// MaxConcurrent is the default number of parallel page requests per entity fetch.
+	MaxConcurrent int
 	// Verbose enables progress logging for IGDB client and fetchers when true.
 	// Set via IGDB_VERBOSE or VARGAMES_VERBOSE (1, true, on), or -verbose flag.
 	Verbose bool
@@ -31,13 +32,14 @@ type Config struct {
 
 // Env variable names. Use these when setting up your environment.
 const (
-	EnvClientID     = "IGDB_CLIENT_ID"
-	EnvClientSecret = "IGDB_CLIENT_SECRET"
-	EnvBaseURL      = "IGDB_BASE_URL"
-	EnvAccessToken  = "IGDB_ACCESS_TOKEN"
-	EnvMaxLimit     = "IGDB_MAX_LIMIT"
-	EnvVerbose      = "IGDB_VERBOSE"
-	EnvVerboseAlt   = "VARGAMES_VERBOSE"
+	EnvClientID      = "IGDB_CLIENT_ID"
+	EnvClientSecret  = "IGDB_CLIENT_SECRET"
+	EnvBaseURL       = "IGDB_BASE_URL"
+	EnvAccessToken   = "IGDB_ACCESS_TOKEN"
+	EnvMaxLimit      = "IGDB_MAX_LIMIT"
+	EnvMaxConcurrent = "IGDB_MAX_CONCURRENT"
+	EnvVerbose       = "IGDB_VERBOSE"
+	EnvVerboseAlt    = "VARGAMES_VERBOSE"
 )
 
 // DefaultBaseURL is the default IGDB API base URL.
@@ -46,6 +48,9 @@ const DefaultBaseURL = "https://api.igdb.com/v4"
 // DefaultMaxLimit is the default IGDB "limit" (page size) used when none is provided.
 // IGDB's maximum (and our default) is 500.
 const DefaultMaxLimit = 500
+
+// DefaultMaxConcurrent is the default number of parallel page requests per entity fetch.
+const DefaultMaxConcurrent = 4
 
 // LoadEnv reads a .env file from the current working directory and sets
 // environment variables for each KEY=VALUE line. Variables already set
@@ -71,12 +76,12 @@ func LoadEnv() error {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		i := strings.Index(line, "=")
-		if i < 0 {
+		before, after, ok := strings.Cut(line, "=")
+		if !ok {
 			return fmt.Errorf("%s:%d: invalid line (missing KEY=VALUE)", envFile, lineNum)
 		}
-		key := strings.TrimSpace(line[:i])
-		value := strings.TrimSpace(line[i+1:])
+		key := strings.TrimSpace(before)
+		value := strings.TrimSpace(after)
 		if key == "" {
 			return fmt.Errorf("%s:%d: empty key", envFile, lineNum)
 		}
@@ -116,22 +121,29 @@ func Load() (Config, error) {
 		baseURL = DefaultBaseURL
 	}
 	accessToken := os.Getenv(EnvAccessToken)
-	maxLimitStr := os.Getenv(EnvMaxLimit)
-	maxLimit := DefaultMaxLimit
-	if maxLimitStr != "" {
-		if v, err := strconv.Atoi(maxLimitStr); err == nil && v > 0 {
-			maxLimit = v
-		}
-	}
+	maxLimit := parsePositiveInt(os.Getenv(EnvMaxLimit), DefaultMaxLimit)
+	maxConcurrent := parsePositiveInt(os.Getenv(EnvMaxConcurrent), DefaultMaxConcurrent)
 	verbose := parseVerbose(os.Getenv(EnvVerbose)) || parseVerbose(os.Getenv(EnvVerboseAlt))
 	return Config{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		BaseURL:      baseURL,
-		AccessToken:  accessToken,
-		MaxLimit:     maxLimit,
-		Verbose:      verbose,
+		ClientID:      clientID,
+		ClientSecret:  clientSecret,
+		BaseURL:       baseURL,
+		AccessToken:   accessToken,
+		MaxLimit:      maxLimit,
+		MaxConcurrent: maxConcurrent,
+		Verbose:       verbose,
 	}, nil
+}
+
+// parsePositiveInt parses s as a positive int; returns defaultVal if s is empty or invalid.
+func parsePositiveInt(s string, defaultVal int) int {
+	if s == "" {
+		return defaultVal
+	}
+	if v, err := strconv.Atoi(s); err == nil && v > 0 {
+		return v
+	}
+	return defaultVal
 }
 
 // parseVerbose returns true for 1, true, on (case-insensitive).
