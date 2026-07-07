@@ -189,6 +189,7 @@ No live IGDB calls in tests.
 
 - Requires fetched data in `data/` (produced by `-fetch` CLI) or `testdata/corpus`
 - HTTP API (`HTTP-API.md`) depends on `forge/title` M2+
+- Corpus load performance: see [research/CORPUS-LOADING.md](../research/CORPUS-LOADING.md)
 
 ## Related Plans
 
