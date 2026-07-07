@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"vargames-name-gen/src/cli"
 	"vargames-name-gen/src/config"
 	"vargames-name-gen/src/igdb"
 )
@@ -46,6 +47,14 @@ func writeEntityResultsJSON(entity string, results []json.RawMessage, dataDir st
 }
 
 func main() {
+	// Generation subcommand does not require IGDB credentials.
+	if cli.IsGenerateCommand(os.Args[1:]) {
+		if err := cli.RunGenerate(os.Args[2:]); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	verbose := flag.Bool("verbose", false, "enable progress logging for IGDB client and fetchers")
 	fetchEntities := flag.String("fetch", "", "fetch entity/entities (comma-separated) and save to data/<entity>.json (e.g. -fetch=games, -fetch=games,genres,platforms)")
 	fetchLimit := flag.Int("fetch-limit", 0, "page size per IGDB request (default from config or IGDB_MAX_LIMIT)")

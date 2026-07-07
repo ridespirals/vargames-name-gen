@@ -21,7 +21,7 @@ flowchart LR
 
   subgraph consumers [Consumers]
     UnitTests[names + httpapi tests]
-    LocalDev["go run . -data-dir=testdata/corpus"]
+    LocalDev["go run ./cmd/forge title"]
     CI[CI integration tests]
   end
 
@@ -63,9 +63,12 @@ testdata/corpus/
 
 ### CLI
 
+```bash
+go run ./cmd/forge title -data-dir=testdata/corpus -seed=1
+go run . generate title -seed=1
 ```
-go run . generate game -data-dir=testdata/corpus -seed=1
-```
+
+No IGDB credentials required for either command.
 
 Document in root README under a "Try without credentials" section (pointer only; no duplicate setup steps).
 

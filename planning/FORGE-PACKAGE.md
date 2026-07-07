@@ -11,7 +11,9 @@ Turn fetched JSON in `data/` into a reusable library that forges **game-world te
 - **`src/forge/`** — corpus loader (`LoadFromDir`, minimal structs)
 - **`src/forge/title/`** — title-family generator shell (games, collections, subtitle extras)
 - **`src/forge/identity/`** — identity-family generator shell (characters, companies)
-- **`main.go`** — fetch only; generation CLI deferred to M6
+- **`main.go`** — fetch; `generate title` subcommand (no IGDB creds)
+- **`cmd/forge`** — standalone forge CLI (dev loop, no IGDB creds)
+- **`src/cli/`** — shared `GenerateTitles`, `RunGenerate`, `RunForge`
 
 ## Proposed Architecture
 
@@ -134,12 +136,20 @@ Each subpackage owns its `Options` and extras; shared concerns (`normalize`, `se
 - Company labels from `companies`
 - Genre weighting via `characters.games[]` → `games.genres[]`
 
-## CLI Integration (Thin Wrapper in `main.go`)
+## CLI Integration
 
+Shared logic lives in [`src/cli/generate.go`](../src/cli/generate.go). Two entry points:
+
+```bash
+# Main binary — generate subcommand skips IGDB config
+go run . generate title -seed=42 -count=5
+
+# Forge binary — no IGDB credentials required (recommended for dev)
+go run ./cmd/forge title -seed=42 -count=5
+go run ./cmd/forge title -data-dir=data -strategy=concat
 ```
-go run . generate title -genre=12 -seed=42
-go run . generate identity -count=5
-```
+
+Default corpus: `testdata/corpus` when present, else `data/` (override with `-data-dir` or `VARGAMES_DATA_DIR`).
 
 Defer HTTP API until CLI proves the API (see `HTTP-API.md`).
 
@@ -163,7 +173,7 @@ No live IGDB calls in tests.
 | M3 | Genre/platform filtering | `forge/title` | ~0.5 day |
 | M4 | `CharacterName` (+ company later) | `forge/identity` | ~0.5 day |
 | M5 | Markov strategy | `forge/title` | ~1–2 days |
-| M6 | CLI flags | `main` | ~0.5 day |
+| M6 | CLI (`generate` + `cmd/forge`) | `main`, `cmd/forge`, `src/cli` | ~0.5 day | **partial** (title only) |
 
 **Total estimate:** ~4–6 days for v1 (M1–M4 + CLI).
 
