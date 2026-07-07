@@ -1,0 +1,12 @@
+[
+  {"id": 1942, "name": "The Legend of Zelda: Breath of the Wild", "genres": [12, 31], "platforms": [130]},
+  {"id": 26758, "name": "Super Mario Odyssey", "genres": [8, 31], "platforms": [130]},
+  {"id": 1266, "name": "Dark Souls", "genres": [12, 25], "platforms": [48, 6]},
+  {"id": 119133, "name": "Elden Ring", "genres": [12, 25, 31], "platforms": [48, 6, 130]},
+  {"id": 19465, "name": "Hollow Knight", "genres": [8, 31], "platforms": [130, 6]},
+  {"id": 1020, "name": "Grand Theft Auto V", "genres": [31], "platforms": [48, 6]},
+  {"id": 7334, "name": "Street Fighter II", "genres": [4], "platforms": [6]},
+  {"id": 7331, "name": "Final Fantasy VII", "genres": [12], "platforms": [6]},
+  {"id": 11156, "name": "Celeste", "genres": [8, 31], "platforms": [130, 6]},
+  {"id": 26192, "name": "Hades", "genres": [12, 25], "platforms": [130, 6]}
+]
