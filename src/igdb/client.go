@@ -167,10 +167,33 @@ func (c *Client) getToken(ctx context.Context) (string, error) {
 	return token, nil
 }
 
+// Get sends a GET request to the given IGDB endpoint with Bearer auth and retries.
+func (c *Client) Get(ctx context.Context, endpoint string) ([]byte, error) {
+	return c.requestWithRetry(ctx, http.MethodGet, endpoint, nil)
+}
+
+// Count returns the total number of records for an IGDB entity via GET /<entity>/count.
+func (c *Client) Count(ctx context.Context, entity Entity) (int, error) {
+	endpoint := string(entity) + "/count"
+	out, err := c.Get(ctx, endpoint)
+	if err != nil {
+		return 0, fmt.Errorf("count %s: %w", entity, err)
+	}
+	n, err := parseCountResponse(out)
+	if err != nil {
+		return 0, fmt.Errorf("count %s: %w", entity, err)
+	}
+	return n, nil
+}
+
 // Post sends a POST request to the given IGDB endpoint with body, using Bearer auth and retries.
 // Retries use exponential backoff (double each time, capped at maxBackoff). Retrying stops when
 // max retries are reached or when total time spent in backoff would exceed maxRetryDuration.
 func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+	return c.requestWithRetry(ctx, http.MethodPost, endpoint, body)
+}
+
+func (c *Client) requestWithRetry(ctx context.Context, method, endpoint string, body []byte) ([]byte, error) {
 	start := time.Now()
 	var lastErr error
 	backoff := c.minBackoff
@@ -181,7 +204,7 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 	attemptsUsed := 0
 	for attempt := 0; attempt <= c.retries; attempt++ {
 		attemptsUsed = attempt
-		resp, err := c.doPost(ctx, endpoint, body)
+		resp, err := c.doRequest(ctx, method, endpoint, body)
 		if err != nil {
 			lastErr = err
 			if !isRetriable(err) || attempt == c.retries {
@@ -227,22 +250,30 @@ func (c *Client) Post(ctx context.Context, endpoint string, body []byte) ([]byte
 	return nil, lastErr
 }
 
-func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+func (c *Client) doRequest(ctx context.Context, method, endpoint string, body []byte) ([]byte, error) {
 	token, err := c.getToken(ctx)
 	if err != nil {
 		return nil, err
 	}
 	u := c.cfg.BaseURL + "/" + endpoint
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
+	var bodyReader io.Reader
+	if len(body) > 0 {
+		bodyReader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Client-Id", c.cfg.ClientID)
 	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Content-Type", "text/plain")
-	if c.log != nil {
-		c.log.Logf("igdb POST %s: {%s}", endpoint, string(body))
+	if method == http.MethodPost {
+		req.Header.Set("Content-Type", "text/plain")
+		if c.log != nil {
+			c.log.Logf("igdb POST %s: {%s}", endpoint, string(body))
+		}
+	} else if c.log != nil {
+		c.log.Logf("igdb GET %s", endpoint)
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -260,6 +291,20 @@ func (c *Client) doPost(ctx context.Context, endpoint string, body []byte) ([]by
 		return nil, fmt.Errorf("igdb %s: status %d: %s", endpoint, resp.StatusCode, string(out))
 	}
 	return out, nil
+}
+
+func parseCountResponse(out []byte) (int, error) {
+	var wrapper struct {
+		Count *int `json:"count"`
+	}
+	if err := json.Unmarshal(out, &wrapper); err == nil && wrapper.Count != nil {
+		return *wrapper.Count, nil
+	}
+	var n int
+	if err := json.Unmarshal(out, &n); err != nil {
+		return 0, fmt.Errorf("decode count response: %w", err)
+	}
+	return n, nil
 }
 
 type retriableError struct {
