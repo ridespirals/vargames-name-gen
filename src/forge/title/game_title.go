@@ -16,7 +16,7 @@ func (g *Generator) GameTitle(opts Options) (string, error) {
 		return "", errors.New("title: no games in corpus")
 	}
 
-	pool := g.gameTitlePool()
+	pool := g.gameTitlePool(opts)
 	existing := g.sourceTitleSet()
 	rng := forge.NewRand(opts.Seed)
 	strategy := strategyName(opts)
@@ -39,14 +39,13 @@ func (g *Generator) GameTitle(opts Options) (string, error) {
 	return "", errors.New("title: could not generate acceptable game title")
 }
 
-func (g *Generator) gameTitlePool() []string {
-	pool := make([]string, 0, len(g.corpus.Games))
-	for _, game := range g.corpus.Games {
-		if name := forge.NormalizeTitle(game.Name); name != "" {
-			pool = append(pool, name)
-		}
+func (g *Generator) gameTitlePool(opts Options) []string {
+	filtered := filterGamePool(g.corpus.Games, opts.GenreID)
+	pool := gameNames(filtered)
+	if len(pool) > 0 {
+		return pool
 	}
-	return pool
+	return gameNames(g.corpus.Games)
 }
 
 func (g *Generator) sourceTitleSet() map[string]struct{} {

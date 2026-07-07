@@ -2,7 +2,7 @@
 
 ## Goal
 
-Turn fetched JSON in `data/` into a reusable library that forges **game-world text artifacts** from IGDB corpora: titles, character names, collection names, company labels, and related patterns — with optional weighting by genre/platform and reproducible output via seeds.
+Turn fetched JSON in `data/` into a reusable library that forges **game-world text artifacts** from IGDB corpora: titles, character names, collection names, company labels, and related patterns — with optional genre weighting and reproducible output via seeds.
 
 ## Current Foundation
 
@@ -89,7 +89,7 @@ Parse only fields needed for generation and weighting. Do not mirror full IGDB s
 | `collections` | `title` | `id`, `name` |
 | `alternative_names` | `title` (mutation tokens) | `name`, `game` |
 | `genres` | both (weighting) | `id`, `name` |
-| `platforms` | `title` (weighting) | `id`, `name` |
+| `platforms` | reference metadata (loaded; not used for title filtering) | `id`, `name` |
 
 ## Public API (v1)
 
@@ -100,7 +100,7 @@ corpus, err := forge.LoadFromDir("data")
 titles := title.New(corpus)
 identities := identity.New(corpus)
 
-// title.Options — genre/platform weighting, strategy, seed
+// title.Options — genre filter, strategy, seed
 name, err := titles.GameTitle(title.Options{GenreID: &rpgID, Seed: 42})
 
 // identity.Options — game linkage, seed
@@ -113,7 +113,7 @@ Each subpackage owns its `Options` and extras; shared concerns (`normalize`, `se
 
 ### Phase 1 — Baseline (`forge/title`, ship first)
 
-1. **Reservoir sampling** from a filtered pool (genre/platform match or fallback to all)
+1. **Reservoir sampling** from a genre-filtered pool (fallback to all games when no matches)
 2. **Concat / mutate:**
    - Split titles on spaces, `:`, `-`
    - Combine 2 fragments from different titles
@@ -170,7 +170,7 @@ No live IGDB calls in tests.
 |-----------|-------------|---------|--------|
 | M1 | `corpus.go` + `LoadFromDir` + subpackage shells | `forge`, `title`, `identity` | ~1 day |
 | M2 | `GameTitle` with reservoir + concat | `forge/title` | ~1 day |
-| M3 | Genre/platform filtering | `forge/title` | ~0.5 day |
+| M3 | Genre filtering | `forge/title` | ~0.5 day |
 | M4 | `CharacterName` (+ company later) | `forge/identity` | ~0.5 day |
 | M5 | Markov strategy | `forge/title` | ~1–2 days |
 | M6 | CLI (`generate` + `cmd/forge`) | `main`, `cmd/forge`, `src/cli` | ~0.5 day | **partial** (title only) |
