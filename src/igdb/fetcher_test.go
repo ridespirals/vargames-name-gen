@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 // parseOffset extracts "offset N" from body for test handlers.
@@ -33,10 +35,25 @@ type fakeFetcherClient struct {
 	seen        bool
 	firstOffset int
 
+	count    *int
+	countErr error
+
 	post func(ctx context.Context, endpoint string, body []byte) ([]byte, error)
 }
 
 func (f *fakeFetcherClient) MaxLimit() int { return f.maxLimit }
+
+func (f *fakeFetcherClient) Count(ctx context.Context, entity Entity) (int, error) {
+	if f.countErr != nil {
+		return 0, f.countErr
+	}
+	if f.count == nil {
+		return 0, errCountUnavailable
+	}
+	return *f.count, nil
+}
+
+func intPtr(n int) *int { return &n }
 
 func (f *fakeFetcherClient) Post(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 	f.mu.Lock()
@@ -272,6 +289,163 @@ func TestAllEntities(t *testing.T) {
 	for _, e := range want {
 		if !seen[e] {
 			t.Errorf("missing entity %s", e)
+		}
+	}
+}
+
+func offsetResponseFixture() map[int][]json.RawMessage {
+	return map[int][]json.RawMessage{
+		0: {json.RawMessage(`{"id":1}`), json.RawMessage(`{"id":2}`)},
+		2: {json.RawMessage(`{"id":3}`), json.RawMessage(`{"id":4}`)},
+		4: {json.RawMessage(`{"id":5}`)},
+	}
+}
+
+func TestFetcher_FetchAll_ConcurrentMatchesSequentialFixture(t *testing.T) {
+	responses := offsetResponseFixture()
+
+	var mu sync.Mutex
+	var calledOffsets []int
+
+	fake := &fakeFetcherClient{
+		maxLimit:    10,
+		firstOffset: -1,
+		count:       intPtr(5),
+		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+			offset := parseOffset(string(body))
+			mu.Lock()
+			calledOffsets = append(calledOffsets, offset)
+			mu.Unlock()
+
+			items, ok := responses[offset]
+			if !ok {
+				return []byte(`[]`), nil
+			}
+			return json.Marshal(items)
+		},
+	}
+
+	fetcher := NewFetcher(fake, EntityGames, FetcherOptions{
+		Limit:         2,
+		MaxConcurrent: 4,
+	})
+	results, err := fetcher.FetchAll(context.Background())
+	if err != nil {
+		t.Fatalf("FetchAll: %v", err)
+	}
+	if len(results) != 5 {
+		t.Fatalf("expected 5 combined results, got %d", len(results))
+	}
+
+	sortInts := func(in []int) []int {
+		out := append([]int(nil), in...)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		return out
+	}
+	got := sortInts(calledOffsets)
+	want := []int{0, 2, 4}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d requests, got %d (offsets: %v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("expected offsets %v, got %v", want, got)
+		}
+	}
+}
+
+func TestFetcher_FetchAll_CountZeroSkipsPost(t *testing.T) {
+	postCalled := false
+	fake := &fakeFetcherClient{
+		maxLimit: 10,
+		count:    intPtr(0),
+		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+			postCalled = true
+			return []byte(`[]`), nil
+		},
+	}
+
+	fetcher := NewFetcher(fake, EntityGenres, FetcherOptions{Limit: 2})
+	results, err := fetcher.FetchAll(context.Background())
+	if err != nil {
+		t.Fatalf("FetchAll: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results, got %d", len(results))
+	}
+	if postCalled {
+		t.Fatal("expected no Post calls when count is 0")
+	}
+}
+
+func TestFetcher_FetchAll_CountFallbackUsesSequential(t *testing.T) {
+	responses := offsetResponseFixture()
+	fake := &fakeFetcherClient{
+		maxLimit:    10,
+		firstOffset: -1,
+		countErr:    errors.New("count endpoint down"),
+		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+			offset := parseOffset(string(body))
+			items, ok := responses[offset]
+			if !ok {
+				return []byte(`[]`), nil
+			}
+			return json.Marshal(items)
+		},
+	}
+
+	fetcher := NewFetcher(fake, EntityGames, FetcherOptions{Limit: 2})
+	results, err := fetcher.FetchAll(context.Background())
+	if err != nil {
+		t.Fatalf("FetchAll: %v", err)
+	}
+	if len(results) != 5 {
+		t.Fatalf("expected 5 results via sequential fallback, got %d", len(results))
+	}
+}
+
+func TestFetcher_FetchAll_ContextCanceledDuringConcurrent(t *testing.T) {
+	fake := &fakeFetcherClient{
+		maxLimit: 10,
+		count:    intPtr(1000),
+		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(50 * time.Millisecond):
+				return []byte(`[{"id":1}]`), nil
+			}
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	fetcher := NewFetcher(fake, EntityGames, FetcherOptions{
+		Limit:         1,
+		MaxConcurrent: 8,
+	})
+	_, err := fetcher.FetchAll(ctx)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestPageCountForTotal(t *testing.T) {
+	tests := []struct {
+		count, limit, want int
+	}{
+		{0, 10, 0},
+		{5, 2, 3},
+		{4, 2, 2},
+		{1, 500, 1},
+	}
+	for _, tc := range tests {
+		if got := pageCountForTotal(tc.count, tc.limit); got != tc.want {
+			t.Errorf("pageCountForTotal(%d, %d) = %d, want %d", tc.count, tc.limit, got, tc.want)
 		}
 	}
 }
