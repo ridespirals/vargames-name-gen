@@ -48,6 +48,8 @@ func writeEntityResultsJSON(entity string, results []json.RawMessage, dataDir st
 func main() {
 	verbose := flag.Bool("verbose", false, "enable progress logging for IGDB client and fetchers")
 	fetchEntities := flag.String("fetch", "", "fetch entity/entities (comma-separated) and save to data/<entity>.json (e.g. -fetch=games, -fetch=games,genres,platforms)")
+	fetchLimit := flag.Int("fetch-limit", 0, "page size per IGDB request (default from config or IGDB_MAX_LIMIT)")
+	fetchConcurrent := flag.Int("fetch-concurrent", 0, "parallel pages within one entity fetch (default from config or IGDB_MAX_CONCURRENT)")
 	flag.Parse()
 
 	cfg, err := config.Load()
@@ -83,9 +85,17 @@ func main() {
 				defer wg.Done()
 				metrics := igdb.NewMetrics(entityStr)
 				client := igdb.NewClient(cfg, igdb.WithLogger(logger), igdb.WithMetrics(metrics))
+				limit := *fetchLimit
+				if limit <= 0 {
+					limit = cfg.MaxLimit
+				}
+				maxConcurrent := *fetchConcurrent
+				if maxConcurrent <= 0 {
+					maxConcurrent = cfg.MaxConcurrent
+				}
 				fetcher := igdb.NewFetcher(client, igdb.Entity(entityStr), igdb.FetcherOptions{
-					Limit:         0,
-					MaxConcurrent: 4,
+					Limit:         limit,
+					MaxConcurrent: maxConcurrent,
 					QueryPrefix:   igdb.QueryPrefixForEntity(igdb.Entity(entityStr)),
 					Logger:        logger,
 				})
