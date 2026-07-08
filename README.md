@@ -8,15 +8,8 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 
 ### TODO / Future
 
-- Use `/count` endpoints to enable fanout
-  - We'd be able to determine how many "fetchers" we could use to pull all the data in parallel
-  - Could also possibly optimize for number of requests or time or fetchers or whatever
-  - Could be a basic change detection feature (if we store the count we found when we last ran, we could at least detect if there are new entities. We'd need another mechanism for modified data, though)
-- Items have a `checksum` field on them: we might be able to use this for updating data
-  - If we fetch limited fields (like just `id` and `checksum`) we can use this for change detection to know if we need to re-pull data for an entity
-  - There is still overhead with HTTP requests and rate-limiting, so it'll require some R&D to determine whether its more efficient to
-    1. pull the entire table with limited fields (which means very small response payloads and possibly faster response times) and comparing checksums to then pull full items with specific IDs
-    2. or just to re-pull the entire table if "know" that "some" data has changed.
+- ~~Use `/count` endpoints to enable fanout~~ — implemented (concurrent paging)
+- ~~Checksum-based change detection / incremental re-fetch~~ — implemented (`-incremental`, see below)
 - Utilize more github features?
   - obviously running unit tests on PRs or commits would be good. we have no "deployment" currently, so it's unclear where exactly this would happen, but if I make a habit of doing PRs once we reach a baseline level of functionality, that's one place we could do it
   - use Issues to track TODOs/future development (or even actual bugs if I find them) (ie. this list)
@@ -52,6 +45,8 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
     - `IGDB_BASE_URL` (default: `https://api.igdb.com/v4`)
     - `IGDB_ACCESS_TOKEN` (optional, pre-generated token; otherwise client-credentials flow is used)
     - `IGDB_MAX_LIMIT` (page size for IGDB queries; IGDB max and default here is `500`)
+    - `IGDB_MAX_CONCURRENT` (parallel pages per entity; default `4`)
+    - `IGDB_FETCH_PROFILE` (default `minimal`; also `full`, `checksum`)
     - `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging)
 
 - **IGDB client**
@@ -63,13 +58,12 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
 
 - **Fetchers**
   - `igdb.Fetcher`:
-    - Pages through IGDB endpoints (e.g. `/games`, `/genres`, `/alternative_names`) using Apicalypse bodies:
-      - `<QueryPrefix> limit <N>; offset <page * N>;` (defaults to `fields *;`)
-    - Walks pages **sequentially** for a given entity:
-      - Starts at offset `0`.
-      - Increments offset by `limit` each page.
-      - Stops when a page is empty or shorter than `limit`.
+    - Pages through IGDB endpoints using Apicalypse bodies with **fetch profiles** (default `minimal` — lean field sets per entity; see `planning/FETCH-PROFILES.md`).
+    - Uses `GET /<entity>/count` when available for concurrent page planning; falls back to sequential scan.
     - Aggregates results into a single JSON array.
+  - **Incremental re-fetch** (`-incremental`): checksum scan + selective `where id = (...)` pulls; writes `data/<entity>-checksums.json`.
+  - **Partial failure** (`-partial`): continue other entities/pages; write `data/<entity>.partial.json` when needed.
+  - **Metadata**: `data/<entity>-meta.json` after each run (counts, profile, incremental stats).
 
 - **Metrics and reports**
   - Per-request metrics:
@@ -167,13 +161,14 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
 
   For each of `games`, `genres`, `platforms`:
 
-  - Creates its own IGDB client + metrics + fetcher (per-entity concurrency).
-  - Fetches pages **sequentially** for that entity; entities are processed in parallel.
+  - Creates its own IGDB client + metrics + fetcher (entities run in parallel).
+  - Pages within each entity use concurrent workers when `/count` is available (see `-fetch-concurrent`).
   - Writes:
     - `data/<entity>.json`
+    - `data/<entity>-meta.json`
     - `data/<entity>-report.html`
 
-  The process exits non‑zero if any entity fetch fails.
+  The process exits non‑zero if any entity fetch fails (use `-partial` to keep partial results).
 
 - **Verbose logging**
 
@@ -188,6 +183,23 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
   - Token refresh logs.
   - Retry logs with backoff durations.
   - Per-page progress logs from fetchers.
+
+- **Fetch profiles and incremental sync**
+
+  Default fetch uses the **minimal** profile (only fields needed for forge + checksums). Use `full` for archival `fields *;`:
+
+  ```bash
+  go run . -fetch=games -fetch-profile=minimal
+  go run . -fetch=games -fetch-profile=full
+  ```
+
+  Re-fetch only changed rows (requires existing `data/games.json`):
+
+  ```bash
+  go run . -fetch=games -incremental
+  ```
+
+  Combine with `-partial` to tolerate page failures during large pulls.
 
 #### Forging titles (no IGDB credentials)
 
@@ -226,6 +238,9 @@ go build -o forge ./cmd/forge
     - `data/games-report.html`
     - `data/genres-report.html`
     - `data/alternative_names-report.html`
+  - Machine-readable metadata:
+    - `data/<entity>-meta.json`
+    - `data/<entity>-checksums.json` (after `-incremental` runs)
   - `data/` is git‑ignored.
 
 These JSON files are the **offline corpus** for procedural generation in the [`forge`](src/forge/) package.

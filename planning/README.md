@@ -14,7 +14,7 @@ For project overview and setup, see the root [README.md](../README.md) and [AGEN
 | [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) | Procedural generation library (`forge`, `title`, `identity`) | P0 |
 | [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) | Offline dev corpus without IGDB credentials | P0 |
 | [TEST-COVERAGE.md](./TEST-COVERAGE.md) | Test strategy and client gap closure | P0 |
-| [FETCH-PROFILES.md](./FETCH-PROFILES.md) | Per-entity IGDB field selection | P1 |
+| [FETCH-PROFILES.md](./FETCH-PROFILES.md) | Per-entity IGDB field selection | P0 |
 | [NAME-QUALITY.md](./NAME-QUALITY.md) | Safety filters on generated names | P1 |
 | [CLI-STRUCTURE.md](./CLI-STRUCTURE.md) | Subcommand-based CLI | P1 |
 | [OBSERVABILITY.md](./OBSERVABILITY.md) | Structured logs, metrics, Prometheus | P1 |
@@ -34,13 +34,13 @@ For project overview and setup, see the root [README.md](../README.md) and [AGEN
 flowchart TB
   subgraph p0 [P0 Foundation]
     FR[FETCH-ROBUSTNESS]
+    FP[FETCH-PROFILES]
     FG[FORGE-PACKAGE]
     SC[SAMPLE-CORPUS]
     TC[TEST-COVERAGE]
   end
 
   subgraph p1 [P1 Core Product]
-    FP[FETCH-PROFILES]
     NQ[NAME-QUALITY]
     CLI[CLI-STRUCTURE]
     OBS[OBSERVABILITY]
@@ -83,12 +83,14 @@ flowchart TB
 
 ## Suggested Execution Order
 
-### Wave 1 — Data pipeline and test foundation
+### Wave 1 — Data pipeline and test foundation ✅ (core complete)
 
-1. [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase A (concurrent fetch + config)
-2. [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) fixtures (can start in parallel)
-3. [TEST-COVERAGE.md](./TEST-COVERAGE.md) client gap tests + CI vet/build
-4. [FETCH-PROFILES.md](./FETCH-PROFILES.md) minimal profiles
+1. ~~[FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase A–D~~ — concurrent fetch, partial, meta, incremental
+2. ~~[FETCH-PROFILES.md](./FETCH-PROFILES.md) minimal profiles~~ — default `minimal` profile
+3. [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) fixtures (can start in parallel)
+4. [TEST-COVERAGE.md](./TEST-COVERAGE.md) client gap tests + CI vet/build
+
+**Remaining from Wave 1:** Phase E JSON summaries; FETCH-PROFILES P5 per-entity overrides; FETCH-ROBUSTNESS D2 full re-pull threshold.
 
 ### Wave 2 — Name generation
 
@@ -102,10 +104,10 @@ flowchart TB
 9. [HTTP-API.md](./HTTP-API.md) serve + generate endpoints
 10. [OPENAPI.md](./OPENAPI.md) spec + Bruno
 11. [CI-INFRA.md](./CI-INFRA.md) Pages for reports; hardened CI
-12. [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase B–C (partial, meta JSON)
 
 ### Wave 4 — Resilience and UX
 
+12. [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase E (JSON summary reports)
 13. [FETCH-RESUME.md](./FETCH-RESUME.md) checkpoints
 14. [INTERACTIVE-UI.md](./INTERACTIVE-UI.md) embedded `/ui/`
 15. [LOCALIZATION.md](./LOCALIZATION.md) locale-aware pools

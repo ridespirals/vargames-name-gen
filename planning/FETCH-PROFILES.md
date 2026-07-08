@@ -6,11 +6,11 @@ Replace the universal `fields *;` Apicalypse prefix with **per-entity fetch prof
 
 ## Current Foundation
 
-- [`QueryPrefixForEntity`](../src/igdb/entities.go) returns `DefaultQueryPrefix` (`fields *;`) for every entity
-- [`Fetcher`](../src/igdb/fetcher.go) appends `limit` / `offset` after the query prefix
-- [`bruno/games.yml`](../bruno/games.yml) requests rich nested fields; fetcher does not match this today
-- [`FORGE-PACKAGE.md`](./FORGE-PACKAGE.md) only needs `id`, `name`, `genres`, `platforms`, `checksum` for games
-- [`FETCH-ROBUSTNESS.md`](./FETCH-ROBUSTNESS.md) Phase D benefits from lightweight `id,checksum` profiles
+- [`profiles.go`](../src/igdb/profiles.go) — `Profile`, `ProfileFor`, `full` / `minimal` / `checksum` registry
+- [`QueryPrefixForEntity`](../src/igdb/entities.go) delegates to the default **minimal** profile
+- [`main.go`](../main.go) wires `-fetch-profile` / `IGDB_FETCH_PROFILE` into `FetcherOptions.QueryPrefix`
+- [`fetchmeta.go`](../fetchmeta.go) records `fetch_profile` in `*-meta.json`
+- [`FORGE-PACKAGE.md`](./FORGE-PACKAGE.md) consumes minimal field sets from fetched JSON
 
 ## Proposed Architecture
 
@@ -19,12 +19,12 @@ flowchart TB
   subgraph registry [Profile registry]
     Full[full profile]
     Minimal[minimal profile]
-    Custom[per-entity overrides]
+    Checksum[checksum profile]
   end
 
   subgraph entities [Entities]
     Games[games: id name genres platforms checksum]
-    Genres[genres: fields star]
+    Genres[genres: id name slug checksum]
     AltNames[alternative_names: name game comment]
   end
 
@@ -39,8 +39,8 @@ flowchart TB
 | Profile | Purpose | Typical use |
 |---------|---------|-------------|
 | `full` | `fields *;` | Archival, exploration, unknown consumers |
-| `minimal` | Entity-specific lean field sets | Name generation, checksum scans |
-| `checksum` | `fields id,checksum;` only | Incremental sync (FETCH-ROBUSTNESS D) |
+| `minimal` | Entity-specific lean field sets | Name generation, default fetch (**default**) |
+| `checksum` | `fields id,checksum;` only | Incremental sync scan (used internally by `-incremental`) |
 
 ### Per-entity minimal field sets (v1)
 
@@ -60,16 +60,7 @@ flowchart TB
 src/igdb/
   profiles.go       # Profile type, registry, ProfileFor(entity, name)
   profiles_test.go
-```
-
-```go
-type Profile struct {
-    Name         string
-    QueryPrefix  string   // semicolon-terminated Apicalypse fragment
-}
-
-func ProfileFor(entity Entity, name string) (Profile, error)
-func DefaultProfile() Profile  // minimal for name-gen path
+  incremental.go    # checksum scan + selective ID pulls (uses minimal for full rows)
 ```
 
 ## Configuration
@@ -80,42 +71,36 @@ func DefaultProfile() Profile  // minimal for name-gen path
 |------|---------|-------------|
 | `IGDB_FETCH_PROFILE` | `minimal` | Global profile: `full`, `minimal`, `checksum` |
 | `-fetch-profile` | from env | CLI override |
-| `-fetch-profile-games=full` | — | Per-entity override (optional v1.1) |
 
 Wire into [`main.go`](../main.go) → `FetcherOptions.QueryPrefix` via `ProfileFor`.
 
 ## Milestones
 
-| Milestone | Deliverable | Effort |
+| Milestone | Deliverable | Status |
 |-----------|-------------|--------|
-| P1 | `Profile` type + registry with `full` and `minimal` | ~0.5 day |
-| P2 | Minimal prefixes for all 7 entities | ~0.5 day |
-| P3 | `checksum` profile for incremental sync | ~0.25 day |
-| P4 | CLI/env `-fetch-profile` wired in `main` | ~0.25 day |
-| P5 | Per-entity override flags (optional) | ~0.5 day |
-| P6 | Document profile → file size impact in README | ~0.25 day |
-
-**Total estimate:** ~2–2.5 days.
+| P1 | `Profile` type + registry with `full` and `minimal` | **Done** |
+| P2 | Minimal prefixes for all 7 entities | **Done** |
+| P3 | `checksum` profile for incremental sync | **Done** |
+| P4 | CLI/env `-fetch-profile` wired in `main` | **Done** |
+| P5 | Per-entity override flags (optional) | Pending |
+| P6 | Document profile → file size impact in README | **Done** (see root README) |
 
 ## Open Decisions
 
-1. **Default profile** — switch default from `full` to `minimal` (breaking for anyone relying on extra fields in JSON)?
-2. **Games nested fields** — include `release_dates` like Bruno, or stay lean for names?
-3. **Profile in meta JSON** — record which profile was used in `*-meta.json` (FETCH-ROBUSTNESS C)?
-
-**Recommendation:** Default `minimal` for new fetches; document migration; record profile in meta JSON.
+1. ~~**Default profile** — switch default from `full` to `minimal`?~~ **Resolved:** default is `minimal`.
+2. **Games nested fields** — include `release_dates` like Bruno, or stay lean for names? **Stay lean** unless a consumer needs them.
+3. ~~**Profile in meta JSON**~~ **Done** — `fetch_profile` in `*-meta.json`.
 
 ## Risk Register
 
 | Risk | Mitigation |
 |------|------------|
 | Missing field breaks future feature | `full` profile always available; meta records profile used |
-| IGDB field deprecation | Profiles centralized in one file; easy to update |
-| `names` loader expects fields absent in old JSON | Loader treats optional fields gracefully |
+| IGDB field deprecation | Profiles centralized in `profiles.go`; easy to update |
+| Old `fields *` JSON on disk | Re-fetch with `-fetch-profile=minimal` to shrink corpus |
 
 ## Related Plans
 
-- [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — checksum profile powers Phase D
+- [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — `-incremental` uses checksum scan + minimal full pulls
 - [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — defines which fields are required
-- [LOCALIZATION.md](./LOCALIZATION.md) — `alternative_names` needs `comment` field in profile
-- [SAMPLE-CORPUS.md](./SAMPLE-CORPUS.md) — fixtures should match minimal profile shape
+- [LOCALIZATION.md](./LOCALIZATION.md) — `alternative_names.comment` included in minimal profile

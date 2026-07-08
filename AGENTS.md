@@ -50,20 +50,25 @@ This document captures the current intent and design of the project so other dev
         - Example: `-fetch=games,genres,alternative_names`.
       - Valid entity names (must match IGDB endpoints and the `igdb` package):
         - `games`, `characters`, `genres`, `platforms`, `collections`, `companies`, `alternative_names`.
+      - CLI flags (also see `config` env vars):
+        - `-fetch-limit`, `-fetch-concurrent` — page size and parallel pages per entity.
+        - `-partial` — continue on page/entity failures; write `data/<entity>.partial.json` when some pages succeed; exit `1` if any entity failed.
+        - `-fetch-profile` — Apicalypse field profile: `full`, `minimal` (default), or `checksum`.
+        - `-incremental` — checksum scan + selective ID pulls for changed/new rows (requires existing `data/<entity>.json` for updates; otherwise full fetch).
       - For each entity:
         - Spawns a goroutine that:
           - Creates a dedicated `igdb.Metrics` and `igdb.Client` (with logger + metrics).
-          - Creates an `igdb.Fetcher` for that entity.
-          - Calls `FetchAll` to page through pages with limit = `Config.MaxLimit` (default 500) until a page is empty or partial.
-          - Writes the raw JSON array to:
-            - `data/<entity>.json` (e.g. `data/alternative_names.json`).
-          - Writes an HTML report to:
-            - `data/<entity>-report.html` (e.g. `data/alternative_names-report.html`).
-            - Report includes total duration, request counts, retry distribution, and per-request samples.
+          - Resolves fetch profile via `igdb.ProfileFor`.
+          - Creates an `igdb.Fetcher` with profile `QueryPrefix`.
+          - Calls `FetchAllResult` or `FetchIncrementalResult` (when `-incremental`).
+          - Writes:
+            - Raw data: `data/<entity>.json` (or `.partial.json` on partial failure).
+            - Metadata: `data/<entity>-meta.json` (counts, profile, incremental stats).
+            - Checksums: `data/<entity>-checksums.json` (after incremental runs).
+            - HTML report: `data/<entity>-report.html`.
       - Waits for all goroutines to finish:
-        - Fails fast if any entity fetch fails.
-        - Logs a summary such as:
-          - `"fetched 3 entities in 1m23s"`.
+        - Exits `1` if any entity fetch failed (unless `-partial` wrote partial data).
+        - Logs per-entity summaries and `"fetched N entities in …"`.
 
 - `src/config/config.go`
   - Package: `config`
@@ -75,6 +80,8 @@ This document captures the current intent and design of the project so other dev
         - `BaseURL`: IGDB API base URL, defaults to `https://api.igdb.com/v4`.
         - `AccessToken`: optional pre-generated token; if set, the client skips Twitch token fetching.
         - `MaxLimit`: default IGDB per-page `limit` (page size); defaults to 500.
+        - `MaxConcurrent`: parallel page workers per entity fetch; defaults to 4.
+        - `FetchProfile`: default Apicalypse profile name (`minimal`); see `igdb` profiles.
         - `Verbose`: enables default verbose logging.
     - **Constants**
       - Env var names:
@@ -83,6 +90,8 @@ This document captures the current intent and design of the project so other dev
         - `EnvBaseURL      = "IGDB_BASE_URL"`
         - `EnvAccessToken  = "IGDB_ACCESS_TOKEN"`
         - `EnvMaxLimit     = "IGDB_MAX_LIMIT"`
+        - `EnvMaxConcurrent = "IGDB_MAX_CONCURRENT"`
+        - `EnvFetchProfile  = "IGDB_FETCH_PROFILE"`
         - `EnvVerbose      = "IGDB_VERBOSE"`
         - `EnvVerboseAlt   = "VARGAMES_VERBOSE"`
       - Default:
@@ -113,6 +122,8 @@ This document captures the current intent and design of the project so other dev
           - Optional `IGDB_BASE_URL`
           - Optional `IGDB_ACCESS_TOKEN` (pre-generated IGDB access token; if present, skips Twitch OAuth).
           - Optional `IGDB_MAX_LIMIT` (int; default `500`, IGDB hard max is 500 per page).
+          - Optional `IGDB_MAX_CONCURRENT` (int; default `4`).
+          - Optional `IGDB_FETCH_PROFILE` (`full`, `minimal`, `checksum`; default `minimal`).
           - Optional `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging; accepts `1`, `true`, `on`, `yes`).
         - Fails if required vars missing:
           - `missing required environment variable IGDB_CLIENT_ID`
@@ -131,6 +142,8 @@ This document captures the current intent and design of the project so other dev
     - Optional:
       - `# IGDB_ACCESS_TOKEN=`
       - `# IGDB_MAX_LIMIT=500`
+      - `# IGDB_MAX_CONCURRENT=4`
+      - `# IGDB_FETCH_PROFILE=minimal`
       - `# IGDB_VERBOSE=1` (or set `VARGAMES_VERBOSE=1`)
   - Comments emphasize **do not commit real credentials**, only examples.
 
@@ -227,25 +240,41 @@ This document captures the current intent and design of the project so other dev
     - Created via `NewFetcher(client FetcherClient, entity Entity, opts FetcherOptions)`.
     - `FetcherOptions`:
       - `Limit` (per-page limit; default uses `client.MaxLimit()` which reflects `Config.MaxLimit`, default 500).
-      - `MaxConcurrent` (reserved for future concurrency tuning; not currently used in `FetchAll`).
+      - `MaxConcurrent` (parallel page workers; used by concurrent `FetchAllResult`).
       - `QueryPrefix`:
-        - Apicalypse query fragment inserted before the paging clauses (`limit`/`offset`).
-        - Defaults to `igdb.DefaultQueryPrefix` (currently `fields *;`).
+        - Apicalypse query fragment inserted before paging clauses (`limit`/`offset`).
+        - Typically from fetch profile via `ProfileFor` (`minimal` default; `full` uses `fields *;`).
       - `Logger` (optional, for progress logs).
-    - `FetchAll(ctx)`:
-      - Walks pages sequentially, starting at offset 0:
-        - `<QueryPrefix> limit <Limit>; offset <page * Limit>;`.
-      - Stops when:
-        - A page returns zero results, or
-        - A page returns fewer than `Limit` results.
-      - Aggregates JSON responses into `[]json.RawMessage`.
-      - Logs progress per page and final item count when a logger is set.
-      - Returns combined results or the first error encountered.
+    - `FetchAllResult(ctx, allowPartial)`:
+      - Uses `GET /<entity>/count` when available to plan concurrent page fetches; falls back to sequential paging.
+      - Stops when all pages complete or on error (partial results when `allowPartial`).
+      - Returns `FetchResult` with items, counts, and optional error.
+    - `FetchIncrementalResult(ctx, existing, dataProfile, allowPartial)`:
+      - Checksum scan (`fields id,checksum;`) → diff vs existing corpus → batch `where id = (...);` pulls with minimal profile → merge.
+      - Writes checksum map via `main` to `data/<entity>-checksums.json`.
+      - No existing corpus → full fetch equivalent.
+
+- `src/igdb/profiles.go`
+  - `Profile`, `ProfileFor(entity, name)` registry: `full`, `minimal` (default), `checksum`.
+  - Per-entity minimal field sets for all 7 entities (see `planning/FETCH-PROFILES.md`).
+
+- `src/igdb/incremental.go`
+  - Incremental diff/merge logic used by `FetchIncrementalResult`.
+
+- `src/igdb/fetch_result.go`
+  - `FetchResult`, `IncrementalStats` for fetch outcomes and meta JSON.
+
+- `fetchmeta.go` / `fetchio.go` (package `main`)
+  - `writeFetchMeta`, `loadPriorFetchMeta`, `loadExistingEntityJSON`, `writeChecksumsJSON`, entity JSON writers.
 
 - `src/igdb/entities.go`
   - `type Entity string` with constants:
     - `games`, `characters`, `genres`, `platforms`, `collections`, `companies`, `alternative_names`.
   - `AllEntities()` and `ValidEntity(string) bool` helpers.
+  - `QueryPrefixForEntity` uses the default **minimal** profile.
+
+- `src/igdb/client.go` (also)
+  - `Get(ctx, endpoint)` and `Count(ctx, entity)` share the same retry/backoff path as `Post`.
 
 - `src/igdb/logger.go`
   - `Logger` interface with `Logf`.
@@ -294,15 +323,14 @@ Good next steps for any developer or agent:
      - Load pre-fetched JSON (or a DB/embedded store) at startup.
      - Delegate generation to `forge/title` and `forge/identity`
 
-3. **Improve fetch robustness and configurability**
-   - Make per-entity `MaxConcurrent` and `MaxLimit` configurable via flags/env.
-   - Allow partial results even when some pages or entities fail (with clear reporting).
-   - Consider persisting fetch metadata (e.g. last run time, last successful page) in `data/`.
-
-4. **Enhance reporting and observability**
-   - Add per-entity summary JSON alongside the HTML reports (for machine consumption).
+3. **Enhance reporting and observability**
+   - Add per-entity summary JSON alongside the HTML reports (Phase E in `planning/FETCH-ROBUSTNESS.md`).
    - Capture and display IGDB status codes/error messages in the report.
    - Optionally, add Prometheus metrics or structured logs for fetch runs.
+
+4. **Fetch profiles and incremental sync (mostly done)**
+   - Per-entity profile overrides (P5 in `planning/FETCH-PROFILES.md`).
+   - Auto full re-pull when too many checksum changes (D2 in `planning/FETCH-ROBUSTNESS.md`).
 
 Keep this file (`AGENTS.md`) updated when you make structural or architectural changes, especially to:
 - Configuration behavior.

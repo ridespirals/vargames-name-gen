@@ -25,6 +25,10 @@ type entityFetchOutcome struct {
 	metrics       *igdb.Metrics
 	limit         int
 	maxConcurrent int
+	profileName   string
+	incremental   bool
+	incStats      igdb.IncrementalStats
+	priorMeta     *fetchMeta
 }
 
 // parseEntityList splits a comma-separated list and returns non-empty trimmed entries.
@@ -53,6 +57,8 @@ func main() {
 	fetchLimit := flag.Int("fetch-limit", 0, "page size per IGDB request (default from config or IGDB_MAX_LIMIT)")
 	fetchConcurrent := flag.Int("fetch-concurrent", 0, "parallel pages within one entity fetch (default from config or IGDB_MAX_CONCURRENT)")
 	fetchPartial := flag.Bool("partial", false, "continue on entity/page failures; write .partial.json when some pages succeed")
+	fetchProfile := flag.String("fetch-profile", "", "Apicalypse field profile: full, minimal (default), or checksum")
+	fetchIncremental := flag.Bool("incremental", false, "re-fetch only changed rows via checksum scan (requires existing data/<entity>.json for updates)")
 	flag.Parse()
 
 	cfg, err := config.Load()
@@ -72,6 +78,15 @@ func main() {
 				log.Fatalf("unknown entity %q; valid: games, characters, genres, platforms, collections, companies, alternative_names", e)
 			}
 		}
+
+		profileName := strings.TrimSpace(*fetchProfile)
+		if profileName == "" {
+			profileName = cfg.FetchProfile
+		}
+		if !igdb.ValidProfileName(profileName) {
+			log.Fatalf("unknown fetch profile %q (valid: full, minimal, checksum)", profileName)
+		}
+
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
 			log.Fatalf("mkdir %s: %v", dataDir, err)
 		}
@@ -92,14 +107,56 @@ func main() {
 				if maxConcurrent <= 0 {
 					maxConcurrent = cfg.MaxConcurrent
 				}
+
+				profile, err := igdb.ProfileFor(igdb.Entity(entityStr), profileName)
+				if err != nil {
+					outMu.Lock()
+					outcomes = append(outcomes, entityFetchOutcome{
+						entity: entityStr,
+						result: igdb.FetchResult{
+							Entity: igdb.Entity(entityStr),
+							Err:    err,
+						},
+					})
+					outMu.Unlock()
+					return
+				}
+
+				priorMeta, _ := loadPriorFetchMeta(entityStr, dataDir)
+				if priorMeta != nil && priorMeta.CountReported > 0 && enableLog {
+					logger.Logf("fetch %s: prior count_reported=%d profile=%s", entityStr, priorMeta.CountReported, priorMeta.FetchProfile)
+				}
+
 				fetcher := igdb.NewFetcher(client, igdb.Entity(entityStr), igdb.FetcherOptions{
 					Limit:         limit,
 					MaxConcurrent: maxConcurrent,
-					QueryPrefix:   igdb.QueryPrefixForEntity(igdb.Entity(entityStr)),
+					QueryPrefix:   profile.QueryPrefix,
 					Logger:        logger,
 				})
 				runStart := time.Now()
-				result := fetcher.FetchAllResult(ctx, *fetchPartial)
+
+				var result igdb.FetchResult
+				var incStats igdb.IncrementalStats
+				if *fetchIncremental {
+					existing, err := loadExistingEntityJSON(entityStr, dataDir)
+					if err != nil {
+						result = igdb.FetchResult{Entity: igdb.Entity(entityStr), Err: err}
+					} else {
+						dataProfile, err := igdb.ProfileFor(igdb.Entity(entityStr), igdb.ProfileMinimal)
+						if err != nil {
+							result = igdb.FetchResult{Entity: igdb.Entity(entityStr), Err: err}
+						} else {
+							result, incStats, _ = fetcher.FetchIncrementalResult(ctx, existing, dataProfile, *fetchPartial)
+						}
+					}
+				} else {
+					result = fetcher.FetchAllResult(ctx, *fetchPartial)
+				}
+
+				if priorMeta != nil && result.CountReported > 0 && priorMeta.CountReported != result.CountReported {
+					log.Printf("fetch %s: count changed %d -> %d", entityStr, priorMeta.CountReported, result.CountReported)
+				}
+
 				outMu.Lock()
 				outcomes = append(outcomes, entityFetchOutcome{
 					entity:        entityStr,
@@ -108,6 +165,10 @@ func main() {
 					metrics:       metrics,
 					limit:         limit,
 					maxConcurrent: maxConcurrent,
+					profileName:   profile.Name,
+					incremental:   *fetchIncremental,
+					incStats:      incStats,
+					priorMeta:     priorMeta,
 				})
 				outMu.Unlock()
 			})
@@ -116,9 +177,9 @@ func main() {
 
 		hadFailure := false
 		for _, out := range outcomes {
-			log.Print(formatFetchSummary(out.entity, out.result))
+			log.Print(formatFetchSummaryDetailed(out))
 
-			if err := writeFetchMeta(out.entity, out.result, out.wallClock, out.limit, out.maxConcurrent, dataDir); err != nil {
+			if err := writeFetchMeta(out.entity, out.result, out.wallClock, out.limit, out.maxConcurrent, out.profileName, out.incremental, out.incStats, out.priorMeta, dataDir); err != nil {
 				log.Printf("warning: could not write meta for %s: %v", out.entity, err)
 			}
 
@@ -145,6 +206,12 @@ func main() {
 				log.Printf("wrote %d items to %s", len(out.result.Items), outPath)
 			}
 
+			if out.incremental {
+				if err := writeChecksumsJSON(out.entity, out.result.Items, dataDir); err != nil {
+					log.Printf("warning: could not write checksums for %s: %v", out.entity, err)
+				}
+			}
+
 			reportPath := filepath.Join(dataDir, out.entity+"-report.html")
 			if err := writeFetchReport(out.metrics, out.wallClock, len(out.result.Items), reportPath); err != nil {
 				log.Printf("warning: could not write report for %s: %v", out.entity, err)
@@ -166,4 +233,16 @@ func main() {
 	client := igdb.NewClient(cfg, igdb.WithLogger(logger))
 	_ = client
 	fmt.Printf("Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n", cfg.BaseURL)
+}
+
+func formatFetchSummaryDetailed(out entityFetchOutcome) string {
+	base := formatFetchSummary(out.entity, out.result)
+	if !out.incremental {
+		return base
+	}
+	if out.incStats.FullRefetch {
+		return base + " (incremental: full refetch, no prior corpus)"
+	}
+	return fmt.Sprintf("%s (incremental: %d updated, %d new, %d removed, %d unchanged)",
+		base, out.incStats.Updated, out.incStats.New, out.incStats.Removed, out.incStats.Unchanged)
 }

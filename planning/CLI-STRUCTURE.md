@@ -10,8 +10,12 @@ Replace the growing flat-flag interface in [`main.go`](../main.go) with **discov
 |-----------------|-------|
 | (none) | Validate config; print hello message |
 | `-fetch=entities` | Fetch IGDB entities to `data/` |
+| `-fetch-limit`, `-fetch-concurrent` | Page size and parallel pages per entity |
+| `-partial` | Continue on failures; write `.partial.json`; exit `1` if any entity failed |
+| `-fetch-profile` | `full`, `minimal` (default), or `checksum` |
+| `-incremental` | Checksum scan + selective re-pull of changed rows |
 | `-verbose` | Enable logging |
-| `generate title` | Forge game titles (no IGDB credentials) — via [`src/cli/generate.go`](../src/cli/generate.go) |
+| `generate title` / `generate character` | Forge names (no IGDB credentials) — via [`src/cli/generate.go`](../src/cli/generate.go) |
 | `cmd/forge` | Standalone binary for forge-only dev loop (same logic as `generate`) |
 
 Planned additions:
@@ -48,7 +52,7 @@ vargames-name-gen validate
 
 # Fetch
 vargames-name-gen fetch games,genres,platforms
-vargames-name-gen fetch games --profile=minimal --concurrent=4 --partial
+vargames-name-gen fetch games --profile=minimal --concurrent=4 --partial --incremental
 
 # Generate (implemented — partial M6)
 

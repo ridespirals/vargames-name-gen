@@ -14,8 +14,11 @@ import (
 type fetchMeta struct {
 	Entity         string    `json:"entity"`
 	FetchedAt      time.Time `json:"fetched_at"`
+	FetchProfile   string    `json:"fetch_profile"`
+	Incremental    bool      `json:"incremental,omitempty"`
 	CountReported  int       `json:"count_reported"`
 	CountFetched   int       `json:"count_fetched"`
+	CountPrevious  *int      `json:"count_previous,omitempty"`
 	Limit          int       `json:"limit"`
 	MaxConcurrent  int       `json:"max_concurrent"`
 	DurationMs     int64     `json:"duration_ms"`
@@ -24,6 +27,11 @@ type fetchMeta struct {
 	PagesTotal     int       `json:"pages_total,omitempty"`
 	Partial        bool      `json:"partial,omitempty"`
 	Error          string    `json:"error,omitempty"`
+	IDsUpdated     int       `json:"ids_updated,omitempty"`
+	IDsNew         int       `json:"ids_new,omitempty"`
+	IDsRemoved     int       `json:"ids_removed,omitempty"`
+	IDsUnchanged   int       `json:"ids_unchanged,omitempty"`
+	FullRefetch    bool      `json:"full_refetch,omitempty"`
 	ChecksumSample *string   `json:"checksum_sample"`
 }
 
@@ -50,10 +58,12 @@ func writeEntityResultsJSONAt(entity string, results []json.RawMessage, dataDir 
 	return outPath, nil
 }
 
-func writeFetchMeta(entity string, res igdb.FetchResult, wallClock time.Duration, limit, maxConcurrent int, dataDir string) error {
+func writeFetchMeta(entity string, res igdb.FetchResult, wallClock time.Duration, limit, maxConcurrent int, profileName string, incremental bool, incStats igdb.IncrementalStats, prior *fetchMeta, dataDir string) error {
 	meta := fetchMeta{
 		Entity:        entity,
 		FetchedAt:     time.Now().UTC(),
+		FetchProfile:  profileName,
+		Incremental:   incremental,
 		CountReported: res.CountReported,
 		CountFetched:  len(res.Items),
 		Limit:         limit,
@@ -63,6 +73,15 @@ func writeFetchMeta(entity string, res igdb.FetchResult, wallClock time.Duration
 		PagesFailed:   res.PagesFailed,
 		PagesTotal:    res.PagesTotal,
 		Partial:       res.Err != nil && len(res.Items) > 0,
+		IDsUpdated:    incStats.Updated,
+		IDsNew:        incStats.New,
+		IDsRemoved:    incStats.Removed,
+		IDsUnchanged:  incStats.Unchanged,
+		FullRefetch:   incStats.FullRefetch,
+	}
+	if prior != nil {
+		prev := prior.CountReported
+		meta.CountPrevious = &prev
 	}
 	if res.Err != nil {
 		meta.Error = res.Err.Error()

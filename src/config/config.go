@@ -25,6 +25,8 @@ type Config struct {
 	MaxLimit int
 	// MaxConcurrent is the default number of parallel page requests per entity fetch.
 	MaxConcurrent int
+	// FetchProfile is the default Apicalypse fetch profile (full, minimal, checksum).
+	FetchProfile string
 	// Verbose enables progress logging for IGDB client and fetchers when true.
 	// Set via IGDB_VERBOSE or VARGAMES_VERBOSE (1, true, on), or -verbose flag.
 	Verbose bool
@@ -38,6 +40,7 @@ const (
 	EnvAccessToken   = "IGDB_ACCESS_TOKEN"
 	EnvMaxLimit      = "IGDB_MAX_LIMIT"
 	EnvMaxConcurrent = "IGDB_MAX_CONCURRENT"
+	EnvFetchProfile  = "IGDB_FETCH_PROFILE"
 	EnvVerbose       = "IGDB_VERBOSE"
 	EnvVerboseAlt    = "VARGAMES_VERBOSE"
 )
@@ -51,6 +54,9 @@ const DefaultMaxLimit = 500
 
 // DefaultMaxConcurrent is the default number of parallel page requests per entity fetch.
 const DefaultMaxConcurrent = 4
+
+// DefaultFetchProfile is the default Apicalypse field profile for fetches.
+const DefaultFetchProfile = "minimal"
 
 // LoadEnv reads a .env file from the current working directory and sets
 // environment variables for each KEY=VALUE line. Variables already set
@@ -123,6 +129,10 @@ func Load() (Config, error) {
 	accessToken := os.Getenv(EnvAccessToken)
 	maxLimit := parsePositiveInt(os.Getenv(EnvMaxLimit), DefaultMaxLimit)
 	maxConcurrent := parsePositiveInt(os.Getenv(EnvMaxConcurrent), DefaultMaxConcurrent)
+	fetchProfile := strings.TrimSpace(os.Getenv(EnvFetchProfile))
+	if fetchProfile == "" {
+		fetchProfile = DefaultFetchProfile
+	}
 	verbose := parseVerbose(os.Getenv(EnvVerbose)) || parseVerbose(os.Getenv(EnvVerboseAlt))
 	return Config{
 		ClientID:      clientID,
@@ -131,6 +141,7 @@ func Load() (Config, error) {
 		AccessToken:   accessToken,
 		MaxLimit:      maxLimit,
 		MaxConcurrent: maxConcurrent,
+		FetchProfile:  fetchProfile,
 		Verbose:       verbose,
 	}, nil
 }

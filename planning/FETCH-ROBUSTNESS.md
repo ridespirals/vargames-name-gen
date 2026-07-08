@@ -4,23 +4,25 @@
 
 Make fetching faster, safer to re-run, and tolerant of partial failure — without breaking the current sequential baseline.
 
-## Current Gaps
+## Current Foundation
 
-| Area | Today |
-|------|-------|
-| `MaxConcurrent` | Semaphore exists in `Fetcher`, but `FetchAll` is **sequential** |
-| `MaxLimit` | Global via `IGDB_MAX_LIMIT` / `Config.MaxLimit` only |
-| Failure mode | Any entity error → `log.Fatal` in `main` |
-| Metadata | HTML reports only; nothing machine-readable for diffs |
-| Change detection | Not implemented (`/count`, `checksum` noted in README TODO) |
+| Area | Status |
+|------|--------|
+| Concurrent paging via `/count` | **Done** (Phase A) |
+| `IGDB_MAX_LIMIT` / `IGDB_MAX_CONCURRENT` + CLI flags | **Done** |
+| `-partial` + `.partial.json` + exit codes | **Done** (Phase B) |
+| `data/<entity>-meta.json` | **Done** (Phase C) |
+| Fetch profiles (`minimal` default) | **Done** ([FETCH-PROFILES.md](./FETCH-PROFILES.md)) |
+| `-incremental` checksum re-fetch | **Done** (Phase D v1) |
+| JSON summary reports | Pending (Phase E) |
 
 ## Proposed Architecture
 
 ```mermaid
 flowchart TB
   subgraph config [Configuration]
-    Env[IGDB_MAX_LIMIT / IGDB_MAX_CONCURRENT]
-    Flags[-fetch-limit -fetch-concurrent -partial]
+    Env[IGDB_MAX_LIMIT / IGDB_MAX_CONCURRENT / IGDB_FETCH_PROFILE]
+    Flags[-fetch-limit -fetch-concurrent -partial -incremental]
   end
 
   subgraph fetch [Fetch pipeline]
@@ -31,78 +33,36 @@ flowchart TB
     Count --> Plan --> Workers --> Merge
   end
 
+  subgraph incremental [Incremental path]
+    Scan[checksum profile scan]
+    Diff[Diff vs existing corpus]
+    Pull["where id = (...); minimal profile"]
+    Scan --> Diff --> Pull --> Merge
+  end
+
   subgraph persist [Persistence]
     JSON[data/entity.json]
     Meta[data/entity-meta.json]
+    Checksums[data/entity-checksums.json]
     Report[data/entity-report.html]
     Merge --> JSON
     Merge --> Meta
+    Merge --> Checksums
     Merge --> Report
   end
 ```
 
-## Phase A — Configurability (Low Risk, Do First)
+## Phase A — Configurability ✅
 
-### Config Additions
+- `IGDB_MAX_CONCURRENT`, `-fetch-limit`, `-fetch-concurrent`
+- `Client.Count()`, concurrent `FetchAll` with merge + sequential fallback
 
-```go
-// config.Config
-MaxConcurrent int  // default 4, env IGDB_MAX_CONCURRENT
-```
+## Phase B — Partial Results & Run Summary ✅
 
-### CLI Flags
+- `FetchResult` with page stats
+- `-partial`: continue on failure, write `.partial.json`, exit `1` if any entity failed
 
-```
--fetch-limit=500          # override per run (default from config)
--fetch-concurrent=4       # parallel pages within one entity
--partial                   # continue other entities/pages on error
-```
-
-Wire `main.go` to pass these into `FetcherOptions` instead of hardcoded `MaxConcurrent: 4`.
-
-### `Fetcher.FetchAll` → Concurrent Pages
-
-1. Call `GET /<entity>/count` (new `Client.Count(ctx, entity)` → `int`)
-2. Compute pages: `ceil(count / limit)`
-3. Spawn workers bounded by `sem` (already in struct)
-4. Each worker: fetch one offset, return `(offset, []json.RawMessage, err)`
-5. Merge results **sorted by offset** (preserve order for reproducibility)
-6. Validate: merged count == count (warn if mismatch)
-
-**Fallback:** If count endpoint fails, fall back to current sequential scan (log warning).
-
-Bruno collections already exist under `bruno/counts/` for all supported entities.
-
-### Tests
-
-- Mock client returning count + ordered pages
-- Concurrent fetch produces same result as sequential fixture
-- Context cancel stops in-flight workers
-
-## Phase B — Partial Results & Run Summary
-
-### Per-Entity Result Type
-
-```go
-type FetchResult struct {
-    Entity      string
-    Items       []json.RawMessage
-    Err         error           // partial failure detail
-    PagesOK     int
-    PagesFailed int
-    Duration    time.Duration
-}
-```
-
-### `main.go` Behavior with `-partial`
-
-- Don't `Fatal` on first entity error
-- Write successful entities normally
-- For failed entities: write `data/<entity>.partial.json` if any pages succeeded
-- Exit code `1` if any failures, `0` if all OK
-- Log summary: `"games: OK 350000 items | characters: FAILED page 12/400"`
-
-## Phase C — Fetch Metadata Persistence
+## Phase C — Fetch Metadata Persistence ✅
 
 ### `data/<entity>-meta.json`
 
@@ -110,43 +70,49 @@ type FetchResult struct {
 {
   "entity": "games",
   "fetched_at": "2026-07-07T18:50:00Z",
+  "fetch_profile": "minimal",
+  "incremental": true,
   "count_reported": 350123,
   "count_fetched": 350123,
+  "count_previous": 350000,
   "limit": 500,
   "max_concurrent": 4,
   "duration_ms": 123456,
-  "checksum_sample": null
+  "ids_updated": 12,
+  "ids_new": 3,
+  "ids_removed": 1,
+  "ids_unchanged": 350107
 }
 ```
 
-Enables:
+## Phase D — Checksum-Based Incremental Fetch ✅ (v1)
 
-- Basic change detection (count changed since last run)
-- Machine-readable CI/report aggregation
-- Future incremental sync
+### Implemented: Approach 1 (checksum scan + selective pull)
 
-## Phase D — Checksum-Based Incremental Fetch (R&D → Implement)
+1. Scan with `fields id,checksum;` (paginated)
+2. Compare to existing `data/<entity>.json` by id + checksum
+3. Batch-fetch changed/new IDs with **minimal** profile: `where id = (...);`
+4. Merge into corpus (drop IDs removed from IGDB)
+5. Write `data/<entity>-checksums.json`
 
-Documented in README as two competing approaches:
+### CLI
 
-### Approach 1: Full Lightweight Scan + Selective Full Pull
+```bash
+# First fetch (full minimal pull)
+go run . -fetch=games
 
-1. Fetch `fields id,checksum;` with paging (small payloads)
-2. Compare to `data/<entity>-checksums.json` from last run
-3. Collect IDs where checksum differs or is new
-4. Batch-fetch full records: `where id = (1,2,3,...);` (IGDB supports `where id = (...)` with limits)
-5. Merge into existing `data/<entity>.json` on disk
+# Later: only changed rows
+go run . -fetch=games -incremental
+```
 
-### Approach 2: Full Re-Pull When Count Changes
+- No existing corpus → full fetch (same as non-incremental)
+- Count change logged when prior `*-meta.json` exists (`count changed X -> Y`)
+- Use `-fetch-profile=full` only when you need archival `fields *;`
 
-- Simpler: if `count` != `meta.count_reported`, run full `FetchAll`
-- Good enough until corpus stabilizes
+### Not yet implemented
 
-### Recommendation
-
-- **Ship Phase C with count-only detection first**
-- **Prototype Approach 1** on `genres` (small entity) to measure request count vs full re-pull
-- Add `-incremental` flag only after prototype proves win
+- Auto fallback to full re-pull when >N% of rows changed
+- Per-entity incremental metrics in HTML report
 
 ## Phase E — Reporting Enhancements
 
@@ -156,18 +122,16 @@ Documented in README as two competing approaches:
 
 ## Milestones
 
-| Milestone | Deliverable | Depends on |
-|-----------|-------------|------------|
-| A1 | `IGDB_MAX_CONCURRENT` + CLI flags | — |
-| A2 | `Client.Count()` | — |
-| A3 | Concurrent `FetchAll` with merge | A2 |
-| B1 | `-partial` + exit codes + partial files | A3 |
-| C1 | `-meta.json` written each run | B1 |
-| D1 | Checksum prototype on `genres` | C1 |
-| D2 | `-incremental` for all entities | D1 metrics |
-| E1 | JSON summary + improved HTML | C1 |
-
-**Total estimate:** ~5–8 days (A–C production-ready in ~3–4 days; D is R&D-heavy).
+| Milestone | Deliverable | Status |
+|-----------|-------------|--------|
+| A1 | `IGDB_MAX_CONCURRENT` + CLI flags | **Done** |
+| A2 | `Client.Count()` | **Done** |
+| A3 | Concurrent `FetchAll` with merge | **Done** |
+| B1 | `-partial` + exit codes + partial files | **Done** |
+| C1 | `-meta.json` written each run | **Done** |
+| D1 | Checksum incremental on all entities | **Done** |
+| D2 | Full re-pull threshold / tuning | Pending |
+| E1 | JSON summary + improved HTML | Pending |
 
 ## Risk Register
 
@@ -176,18 +140,21 @@ Documented in README as two competing approaches:
 | IGDB rate limits under concurrency | Default `MaxConcurrent=4`; respect existing backoff in `Client.Post` |
 | Out-of-order page merge bugs | Sort by offset; test against golden sequential output |
 | Count endpoint drift vs actual pages | Log mismatch; fall back to sequential |
-| Checksum approach more requests than full pull | Benchmark on small entity before committing |
-| Partial JSON files confuse `forge` loader | `forge` loads only `*.json` excluding `*.partial.json`; document clearly |
+| Checksum approach more requests than full pull | Log incremental stats; optional full re-fetch when corpus is new |
+| Partial JSON files confuse `forge` loader | `forge` skips `*.partial.json`; document clearly |
 
 ## Suggested Execution Order (Cross-Plan)
 
-1. **Phase A** — concurrent fetch + config (faster corpus, no API change for names)
-2. **FORGE-PACKAGE M1–M4** — forge library on stable `data/`
-3. **Phase B–C** — partial results + meta (helps iterative name tuning)
-4. **FORGE-PACKAGE M5–M6** — Markov + CLI
-5. **Phase D** — incremental fetch once re-fetching becomes routine
+1. ~~**Phase A**~~ — concurrent fetch + config
+2. ~~**FORGE-PACKAGE M1–M4**~~ — forge library on stable `data/`
+3. ~~**Phase B–C**~~ — partial results + meta
+4. ~~**FETCH-PROFILES**~~ — minimal default profiles
+5. ~~**Phase D v1**~~ — `-incremental` re-fetch
+6. **FORGE-PACKAGE M5–M6** — Markov + CLI polish
+7. **Phase E** — JSON summary reports
 
 ## Related Plans
 
+- [FETCH-PROFILES.md](./FETCH-PROFILES.md) — field selection registry
 - [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — consumes `data/*.json` output
 - [CI-INFRA.md](./CI-INFRA.md) — CI for fetch tests; GitHub Pages for reports

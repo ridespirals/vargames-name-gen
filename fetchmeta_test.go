@@ -26,11 +26,11 @@ func TestWriteFetchMeta(t *testing.T) {
 	tmp := t.TempDir()
 	res := igdb.FetchResult{
 		CountReported: 100,
-		Items:         []json.RawMessage{json.RawMessage(`{"id":1}`)},
+		Items:         []json.RawMessage{json.RawMessage(`{"id":1,"checksum":"abc"}`)},
 		PagesOK:       1,
 		PagesTotal:    1,
 	}
-	if err := writeFetchMeta("games", res, 1500*time.Millisecond, 500, 4, tmp); err != nil {
+	if err := writeFetchMeta("games", res, 1500*time.Millisecond, 500, 4, "minimal", false, igdb.IncrementalStats{}, nil, tmp); err != nil {
 		t.Fatalf("writeFetchMeta: %v", err)
 	}
 	raw, err := os.ReadFile(tmp + "/games-meta.json")
@@ -41,7 +41,7 @@ func TestWriteFetchMeta(t *testing.T) {
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		t.Fatalf("Unmarshal: %v", err)
 	}
-	if meta.Entity != "games" || meta.CountFetched != 1 || meta.Limit != 500 {
+	if meta.Entity != "games" || meta.CountFetched != 1 || meta.FetchProfile != "minimal" {
 		t.Fatalf("unexpected meta: %+v", meta)
 	}
 }

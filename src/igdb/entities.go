@@ -20,12 +20,14 @@ const (
 // clauses, so this string includes a trailing ';'.
 const DefaultQueryPrefix = "fields *;"
 
-// QueryPrefixForEntity returns the Apicalypse query text that will be inserted before
-// paging clauses.
-//
-// For now, every entity uses the same default, but keeping this as a hook makes it easy
-// to customize per-entity later (e.g. fetch only id/summary for cheap pagination).
-func QueryPrefixForEntity(_ Entity) string { return DefaultQueryPrefix }
+// QueryPrefixForEntity returns the default (minimal) Apicalypse query prefix for entity.
+func QueryPrefixForEntity(entity Entity) string {
+	p, err := DefaultProfile(entity)
+	if err != nil {
+		return DefaultQueryPrefix
+	}
+	return p.QueryPrefix
+}
 
 // AllEntities returns every entity type supported by the fetcher (matches Bruno requests).
 func AllEntities() []Entity {
