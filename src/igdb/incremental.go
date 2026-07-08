@@ -220,10 +220,7 @@ func (f *Fetcher) fetchByIDs(ctx context.Context, ids []int, queryPrefix string,
 	var firstErr error
 
 	for start := 0; start < len(ids); start += batchSize {
-		end := start + batchSize
-		if end > len(ids) {
-			end = len(ids)
-		}
+		end := min(start+batchSize, len(ids))
 		batch := ids[start:end]
 		body := fmt.Sprintf("%s where id = (%s); limit %d;", queryPrefix, joinIDs(batch), len(batch))
 		out, err := f.client.Post(ctx, string(f.entity), []byte(body))

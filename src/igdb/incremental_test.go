@@ -54,7 +54,7 @@ func TestMergeRecordsByID(t *testing.T) {
 func TestFetchIncrementalResult_emptyExistingFullFetch(t *testing.T) {
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(2),
+		count:    new(2),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			return json.Marshal([]json.RawMessage{
 				json.RawMessage(`{"id":1,"name":"A","checksum":"x"}`),
@@ -84,7 +84,7 @@ func TestFetchIncrementalResult_checksumDiffPullsUpdates(t *testing.T) {
 
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(1),
+		count:    new(1),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			postBodies = append(postBodies, string(body))
 			s := string(body)
@@ -128,7 +128,7 @@ func TestFetchIncrementalResult_noChanges(t *testing.T) {
 	}
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(1),
+		count:    new(1),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			return json.Marshal([]json.RawMessage{
 				json.RawMessage(`{"id":1,"checksum":"aaa"}`),
@@ -153,7 +153,7 @@ func TestFetchIncrementalResult_fetchByIDsError(t *testing.T) {
 	wantErr := errors.New("api down")
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(1),
+		count:    new(1),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			if strings.Contains(string(body), "where id =") {
 				return nil, wantErr

@@ -16,7 +16,7 @@ func TestFetchAllResult_PartialConcurrentKeepsSuccessfulPages(t *testing.T) {
 
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(4),
+		count:    new(4),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			offset := parseOffset(string(body))
 			if offset == 2 {
@@ -80,7 +80,7 @@ func TestFetchAllResult_NonPartialFailsFast(t *testing.T) {
 
 	fake := &fakeFetcherClient{
 		maxLimit: 10,
-		count:    intPtr(4),
+		count:    new(4),
 		post: func(ctx context.Context, endpoint string, body []byte) ([]byte, error) {
 			offset := parseOffset(string(body))
 			if offset == 2 {
