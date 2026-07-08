@@ -169,6 +169,9 @@ func (f *Fetcher) FetchIncrementalResult(ctx context.Context, existing []json.Ra
 		}, stats, scan.Err
 	}
 
+	if f.log != nil {
+		f.log.Logf("fetcher %s: incremental pull %d changed ids", f.entity, len(needIDs))
+	}
 	updates, err := f.fetchByIDs(ctx, needIDs, dataProfile.QueryPrefix, allowPartial)
 	if err != nil && len(updates) == 0 {
 		return FetchResult{Entity: f.entity, Err: err}, stats, err
@@ -238,6 +241,9 @@ func (f *Fetcher) fetchByIDs(ctx context.Context, ids []int, queryPrefix string,
 			return nil, fmt.Errorf("decode ids batch: %w", err)
 		}
 		combined = append(combined, page...)
+		if f.log != nil {
+			f.log.Logf("fetcher %s: pulled %d/%d ids%s", f.entity, end, len(ids), formatPercent(end, len(ids)))
+		}
 	}
 	return combined, firstErr
 }

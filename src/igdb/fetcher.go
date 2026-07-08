@@ -102,3 +102,15 @@ func pageCountForTotal(count, limit int) int {
 
 // Entity returns the entity type this fetcher uses.
 func (f *Fetcher) Entity() Entity { return f.entity }
+
+// formatPercent returns a percentage suffix like " (42.3%)" or empty when total is unknown.
+func formatPercent(done, total int) string {
+	if total <= 0 {
+		return ""
+	}
+	pct := float64(done) * 100 / float64(total)
+	if pct > 100 {
+		pct = 100
+	}
+	return fmt.Sprintf(" (%.1f%%)", pct)
+}

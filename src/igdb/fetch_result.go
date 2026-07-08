@@ -106,7 +106,8 @@ func (f *Fetcher) fetchAllSequentialResult(ctx context.Context, allowPartial boo
 		pagesOK++
 		combined = append(combined, pageResults...)
 		if f.log != nil {
-			f.log.Logf("fetcher %s: page %d fetched %d items (total %d)", f.entity, page+1, len(pageResults), len(combined))
+			f.log.Logf("fetcher %s: page %d fetched %d items (total %d%s)",
+				f.entity, page+1, len(pageResults), len(combined), formatPercent(len(combined), countReported))
 		}
 		if len(pageResults) < f.limit {
 			if f.log != nil {
@@ -117,7 +118,7 @@ func (f *Fetcher) fetchAllSequentialResult(ctx context.Context, allowPartial boo
 	}
 
 	if f.log != nil {
-		f.log.Logf("fetcher %s: finished %d items", f.entity, len(combined))
+		f.log.Logf("fetcher %s: finished %d items%s", f.entity, len(combined), formatPercent(len(combined), countReported))
 	}
 	return FetchResult{
 		Entity:        f.entity,
@@ -175,11 +176,17 @@ func (f *Fetcher) fetchAllConcurrentResult(ctx context.Context, count int, allow
 	var firstErr error
 	pagesOK := 0
 	pagesFailed := 0
+	itemsFetched := 0
 	for r := range resultsCh {
 		if r.err != nil {
 			pagesFailed++
 			if firstErr == nil {
 				firstErr = r.err
+			}
+			if f.log != nil {
+				pagesDone := pagesOK + pagesFailed
+				f.log.Logf("fetcher %s: page %d failed (%d/%d pages%s, %d/%d items%s)",
+					f.entity, r.page+1, pagesDone, pages, formatPercent(pagesDone, pages), itemsFetched, count, formatPercent(itemsFetched, count))
 			}
 			if !allowPartial {
 				return FetchResult{
@@ -192,7 +199,13 @@ func (f *Fetcher) fetchAllConcurrentResult(ctx context.Context, count int, allow
 			continue
 		}
 		pagesOK++
+		itemsFetched += len(r.items)
 		pageResults = append(pageResults, r)
+		if f.log != nil {
+			pagesDone := pagesOK + pagesFailed
+			f.log.Logf("fetcher %s: %d/%d pages complete (%d/%d items%s)",
+				f.entity, pagesDone, pages, itemsFetched, count, formatPercent(itemsFetched, count))
+		}
 	}
 
 	sort.Slice(pageResults, func(i, j int) bool {
@@ -202,9 +215,6 @@ func (f *Fetcher) fetchAllConcurrentResult(ctx context.Context, count int, allow
 	var combined []json.RawMessage
 	for _, pr := range pageResults {
 		combined = append(combined, pr.items...)
-		if f.log != nil {
-			f.log.Logf("fetcher %s: page %d fetched %d items (total %d)", f.entity, pr.page+1, len(pr.items), len(combined))
-		}
 	}
 
 	if len(combined) != count && firstErr == nil {
@@ -214,7 +224,7 @@ func (f *Fetcher) fetchAllConcurrentResult(ctx context.Context, count int, allow
 	}
 
 	if f.log != nil {
-		f.log.Logf("fetcher %s: finished %d items", f.entity, len(combined))
+		f.log.Logf("fetcher %s: finished %d items%s", f.entity, len(combined), formatPercent(len(combined), count))
 	}
 
 	res := FetchResult{
