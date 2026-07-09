@@ -283,16 +283,40 @@ flowchart LR
   H -->|no| G
 ```
 
-1. **Implement FETCH-PROFILES** and re-fetch `games` (and `alternative_names`) with minimal fields.
-2. **Add mtime-aware corpus cache** in `src/cli` (and later HTTP server startup).
-3. **Add `BenchmarkLoadFromDir`** in `corpus_test.go` (build tag or env var for `data/` path) to track regressions.
+1. ~~**Implement FETCH-PROFILES**~~ — **done**; re-fetch `games` (and `alternative_names`) with minimal fields to realize gains.
+2. **Add mtime-aware corpus cache** in `src/cli` (and later HTTP server startup) — see FORGE-PACKAGE M7.
+3. ~~**Add `BenchmarkLoadFromDir`**~~ — **done** in [`corpus_test.go`](../src/forge/corpus_test.go).
 4. Revisit sidecars / gob / SQLite only if lean JSON + cache is still too slow.
 
 ---
 
-## Benchmark harness (ad hoc)
+## Benchmark harness
 
-To reproduce load timing on `data/`:
+### Go benchmarks (`corpus_test.go`)
+
+```bash
+# Committed fixtures (CI-safe)
+go test -bench=BenchmarkLoadFromDir_SampleCorpus -benchtime=5x ./src/forge/...
+
+# Production data/ (skipped when games.json absent)
+go test -bench=BenchmarkLoadFromDir_DataDir -benchtime=3x ./src/forge/...
+```
+
+`BenchmarkLoadFromDir_SampleCorpus` on `testdata/corpus/` (~2.1 KB): **&lt;1ms** per load (not representative of production).
+
+### Post-minimal profile estimates
+
+FETCH-PROFILES is implemented; gains require re-fetching with `-fetch-profile=minimal`. Until a local `data/` minimal re-fetch is measured, use these estimates (derived from field reduction on ~357k games):
+
+| Metric | `fields *` (measured 2026-07-07) | `minimal` (estimated) |
+|--------|-----------------------------------|------------------------|
+| `games.json` size | 351 MB | ~30–80 MB |
+| `LoadFromDir` wall time | ~3.7s | ~0.5–1.5s |
+| `alternative_names.json` | 26 MB | ~8–15 MB |
+
+**Action:** After re-fetching `data/` with minimal profile, run `BenchmarkLoadFromDir_DataDir` and update this table with measured values.
+
+### Ad hoc timing script
 
 ```go
 package main
@@ -314,7 +338,7 @@ func main() {
 }
 ```
 
-Run from repo root: `go run ./path/to/harness`
+Run from repo root after building a small harness or use the benchmark above.
 
 For CI, use `testdata/corpus` only — do not depend on gitignored `data/` in automated tests.
 
@@ -325,7 +349,7 @@ For CI, use `testdata/corpus` only — do not depend on gitignored `data/` in au
 1. **Acceptable load time** for CLI? (&lt;1s? &lt;500ms?) vs HTTP server (one-time at startup)?
 2. **Keep full `fields *` dumps** alongside lean files, or replace in place?
 3. **Blocklist quality** without loading 196k `alternative_names` — bloom filter / sampled subset?
-4. **Re-benchmark after FETCH-PROFILES** — update this doc with measured lean-JSON numbers.
+4. ~~**Re-benchmark after FETCH-PROFILES**~~ — estimates added; update with measured lean-JSON numbers after minimal re-fetch.
 
 ---
 
@@ -333,4 +357,5 @@ For CI, use `testdata/corpus` only — do not depend on gitignored `data/` in au
 
 | Date | Notes |
 |------|-------|
-| 2026-07-07 | Initial investigation; baseline ~3.7s on 351 MB `games.json` |
+| 2026-07-07 | Initial investigation; baseline ~3.7s on 351 MB `games.json` (`fields *`) |
+| 2026-07-08 | FETCH-PROFILES implemented; added `BenchmarkLoadFromDir` in corpus_test.go; post-minimal estimates documented |

@@ -86,11 +86,11 @@ Integrate with [CLI-STRUCTURE.md](./CLI-STRUCTURE.md) `fetch` subcommand.
 
 ## Concurrent Fetch Interaction
 
-When [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase A lands:
+[FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase A (concurrent paging) is **implemented**. Resume must account for parallel workers:
 
 - Checkpoint tracks **completed offsets** (set of ranges), not just sequential `next_offset`
 - On resume, skip offsets already in checkpoint set
-- More complex; implement sequential resume first
+- More complex than sequential resume; implement sequential resume (R1–R5) first, then R6 for concurrent
 
 ## Milestones
 
@@ -105,7 +105,7 @@ When [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase A lands:
 
 **Total estimate:** ~2–3 days (R1–R5); +1 day for R6.
 
-**Depends on:** FETCH-ROBUSTNESS Phase A–B recommended first.
+**Depends on:** FETCH-ROBUSTNESS Phase A–B (**done**); resume builds on existing partial-fetch behavior.
 
 ## Open Decisions
 

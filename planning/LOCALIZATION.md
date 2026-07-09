@@ -78,12 +78,12 @@ Build during `LoadFromDir` alongside main indexes.
 
 ## API Surface
 
-### `names.Options`
+### `title.Options` / `identity.Options`
 
 ```go
-type Options struct {
-  // ...existing
-  Locale string // "" = global
+type title.Options struct {
+  // ...existing (GenreID, Seed, Strategy)
+  Locale string // "" = global (LOCALIZATION)
 }
 ```
 

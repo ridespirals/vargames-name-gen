@@ -8,7 +8,7 @@ Provide an **optional SQLite backing store** for the IGDB corpus when in-memory 
 
 - Corpus lives as JSON arrays in `data/<entity>.json`
 - [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) plans in-memory indexes built at `LoadFromDir` time
-- Character genre weighting (Phase 3) requires joining `characters.games[]` → `games.genres[]`
+- Character genre weighting via `characters.games[]` → `games.genres[]` is **implemented** in `identity/filter.go`
 - No database dependency in [`go.mod`](../go.mod) today (stdlib only)
 
 ## Trigger Criteria (When to Build)
@@ -27,7 +27,7 @@ Until then, JSON + in-memory maps are sufficient.
 flowchart TB
   JSON[data/*.json] --> Import[index command]
   Import --> DB[(data/corpus.db)]
-  DB --> Loader[names.Generator loader]
+  DB --> Loader[forge.LoadFromDir or SQLite adapter]
   Loader --> Generate[Generation]
 ```
 
@@ -100,7 +100,8 @@ src/store/
 ## Loader Integration
 
 ```go
-func LoadFromDir(dir string) (*Generator, error) {
+// forge — prefer SQLite when corpus.db exists
+func LoadFromDir(dir string) (*forge.Corpus, error) {
     dbPath := filepath.Join(dir, "corpus.db")
     if _, err := os.Stat(dbPath); err == nil {
         return loadFromSQLite(dbPath)
@@ -135,7 +136,7 @@ See [CLI-STRUCTURE.md](./CLI-STRUCTURE.md).
 | E1 | Schema + migrate on open | ~0.5 day |
 | E2 | `import` from JSON (games, genres, characters) | ~1 day |
 | E3 | `index` CLI command | ~0.25 day |
-| E4 | `names` loader adapter + genre pool query | ~1 day |
+| E4 | `forge` loader adapter + genre pool query | ~1 day |
 | E5 | Benchmark JSON vs SQLite load + query | ~0.5 day |
 | E6 | Import remaining entities (alt names, etc.) | ~0.5 day |
 

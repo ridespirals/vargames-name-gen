@@ -107,7 +107,7 @@ func GenerateTitles(cfg TitleConfig) ([]string, error) {
 	return out, nil
 }
 
-// RunGenerate runs forge generation subcommands: title, character (future).
+// RunGenerate runs forge generation subcommands: title, character.
 func RunGenerate(args []string) error {
 	if len(args) == 0 {
 		PrintGenerateUsage(os.Stderr)

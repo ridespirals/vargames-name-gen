@@ -20,7 +20,7 @@ Replace the growing flat-flag interface in [`main.go`](../main.go) with **discov
 
 Planned additions:
 
-- `-serve` ([HTTP-API.md](./HTTP-API.md))
+- `serve` subcommand ([HTTP-API.md](./HTTP-API.md))
 - `-report-index` ([CI-INFRA.md](./CI-INFRA.md))
 - `fetch --resume` ([FETCH-RESUME.md](./FETCH-RESUME.md))
 - `index` ([EMBEDDED-INDEX.md](./EMBEDDED-INDEX.md))
@@ -54,17 +54,16 @@ vargames-name-gen validate
 vargames-name-gen fetch games,genres,platforms
 vargames-name-gen fetch games --profile=minimal --concurrent=4 --partial --incremental
 
-# Generate (implemented — partial M6)
+# Generate (implemented — title + character)
 
 # Via main binary (skips IGDB config load)
 vargames-name-gen generate title -seed=42 -count=5
+vargames-name-gen generate character -seed=42 -count=3
 
 # Via forge binary (no IGDB credentials ever)
 go run ./cmd/forge title -seed=42 -count=5
+go run ./cmd/forge character -seed=42 -count=3
 forge title -data-dir=data -strategy=concat
-
-# Future
-vargames-name-gen generate character --count=3
 
 # Serve HTTP API (after HTTP-API)
 vargames-name-gen serve --addr=:8080 --data-dir=data
@@ -75,6 +74,13 @@ vargames-name-gen report-index --data-dir=data
 # Future
 vargames-name-gen index --data-dir=data    # build SQLite corpus
 vargames-name-gen fetch games --resume
+
+# Validate corpus (planned)
+vargames-name-gen validate corpus --data-dir=data
+
+# List reference IDs from corpus (planned)
+vargames-name-gen list genres --data-dir=data
+vargames-name-gen list platforms
 ```
 
 ## Implementation Approach
@@ -105,7 +111,21 @@ src/cli/
   generate_test.go
   fetch.go          # planned
   serve.go          # planned
+  validate.go       # planned — config + corpus checks
+  list.go           # planned — genres/platforms from corpus
 ```
+
+## Exit Codes
+
+| Code | Subcommand | Meaning |
+|------|------------|---------|
+| 0 | all | Success |
+| 1 | fetch | One or more entities failed (including `-partial` partial save) |
+| 1 | generate | Generation/quality exhausted |
+| 2 | all | Config error (missing credentials, bad flags) |
+| 2 | validate | Corpus validation failed |
+
+Document in root README when `fetch` subcommand lands.
 
 `cmd/forge/main.go` calls `cli.RunForge` for a credentials-free dev binary.
 
@@ -139,8 +159,10 @@ Usage:
 
 Commands:
   validate      Check configuration and exit
+  validate corpus  Check data-dir integrity (planned)
   fetch         Fetch IGDB entities to data/
   generate      Generate game or character names
+  list          List genres/platforms from corpus (planned)
   serve         Start HTTP API server
   report-index  Build HTML index of fetch reports
 
@@ -153,12 +175,13 @@ Flags:
 | Milestone | Deliverable | Effort | Status |
 |-----------|-------------|--------|--------|
 | C1 | Dispatch skeleton + `validate` default | ~0.5 day | partial (`generate` only) |
-| C2 | `fetch` subcommand (migrate from `-fetch`) | ~0.5 day | |
-| C3 | Deprecation shim for `-fetch=` | ~0.25 day | |
-| C4 | `generate` subcommand + `cmd/forge` | ~0.25 day | **done** |
-| C5 | `serve` subcommand | ~0.25 day | (with HTTP-API H4) |
-| C6 | `report-index` subcommand | ~0.25 day | |
+| C2 | `fetch` subcommand (migrate from `-fetch`) | ~0.5 day | Pending |
+| C3 | Deprecation shim for `-fetch=` | ~0.25 day | Pending |
+| C4 | `generate` subcommand + `cmd/forge` | ~0.25 day | **Done** |
+| C5 | `serve` subcommand | ~0.25 day | Pending (HTTP-API H4) |
+| C6 | `report-index` subcommand | ~0.25 day | Pending |
 | C7 | `src/cli/` package extraction (fetch) | ~0.5 day | partial |
+| C8 | `validate corpus` + `list genres/platforms` | ~0.5 day | Pending |
 
 **Total estimate:** ~2–2.5 days across multiple feature landings.
 
@@ -185,4 +208,5 @@ Flags:
 - [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) — fetch flags move under `fetch`
 - [FETCH-RESUME.md](./FETCH-RESUME.md) — `fetch --resume`
 - [EMBEDDED-INDEX.md](./EMBEDDED-INDEX.md) — `index` subcommand
-- [CI-INFRA.md](./CI-INFRA.md) — `report-index`
+- [CORPUS-LIFECYCLE.md](./CORPUS-LIFECYCLE.md) — validate/list commands
+- [EXPORT-FORMATS.md](./EXPORT-FORMATS.md) — `-output` on generate

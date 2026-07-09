@@ -11,11 +11,18 @@ Close the README "Client unit tests" checklist, document repo-wide testing conve
 | Package | File | Coverage |
 |---------|------|----------|
 | `igdb` | [`client_test.go`](../src/igdb/client_test.go) | Post success, retries, 429, token refresh, context cancel, metrics, max retry duration |
-| `igdb` | [`fetcher_test.go`](../src/igdb/fetcher_test.go) | Paging, empty response, error propagation |
-| `igdb` | [`metrics_test.go`](../src/igdb/metrics_test.go) | Metrics recording |
+| `igdb` | [`fetcher_test.go`](../src/igdb/fetcher_test.go) | Paging, concurrent, empty response, partial mode |
+| `igdb` | [`incremental_test.go`](../src/igdb/incremental_test.go) | Checksum diff, merge, batch ID fetch |
+| `igdb` | [`profiles_test.go`](../src/igdb/profiles_test.go) | Profile registry |
+| `forge` | [`corpus_test.go`](../src/forge/corpus_test.go) | LoadFromDir, benchmarks |
+| `forge/title` | [`game_title_test.go`](../src/forge/title/game_title_test.go) | Determinism, genre filter, strategies |
+| `forge/identity` | [`character_name_test.go`](../src/forge/identity/character_name_test.go) | Determinism, genre join |
+| `cli` | [`generate_test.go`](../src/cli/generate_test.go) | Generate determinism, data dir resolution |
 | `main` | [`main_test.go`](../main_test.go) | `writeEntityResultsJSON` |
 
 ### README gap checklist vs reality
+
+Moved from root README — track in this plan only:
 
 | README item | Status |
 |-------------|--------|
@@ -36,7 +43,7 @@ flowchart TB
   subgraph unit [Unit tests - no network]
     Client[igdb client mocks]
     Fetcher[igdb fetcher mocks]
-    Names[names + quality]
+    Forge[forge/title + forge/identity + quality]
     HTTP[httpapi httptest]
     Main[main/cli helpers]
   end
@@ -46,7 +53,7 @@ flowchart TB
     HTTPMock[httptest.Server]
   end
 
-  Corpus --> Names
+  Corpus --> Forge
   HTTPMock --> Client
   Corpus --> HTTP
 ```
@@ -87,7 +94,9 @@ testdata/
 | Package | Target | Priority |
 |---------|--------|----------|
 | `src/igdb` | ≥ 80% | P0 |
-| `src/forge` | ≥ 75% | P0 (when exists) |
+| `src/forge` | ≥ 75% | P0 |
+| `src/forge/title` | ≥ 75% | P0 |
+| `src/forge/identity` | ≥ 75% | P0 |
 | `src/httpapi` | ≥ 70% | P1 |
 | `src/cli` | ≥ 60% | P1 |
 | `main` | smoke tests for dispatch | P2 |
@@ -109,7 +118,10 @@ Measure with `go test -coverprofile=coverage.out ./...`.
 
 | Package | Key tests |
 |---------|-----------|
-| `names` | LoadFromDir, determinism, genre filter, quality filter |
+| `forge` | `LoadFromDir`, missing optional files, `TestCorpusDir` |
+| `forge/title` | `GameTitle` determinism, genre filter, concat/pick strategies |
+| `forge/identity` | `CharacterName` determinism, genre join via games |
+| `forge/quality` | Filter chain, profanity, batch dedup (when implemented) |
 | `httpapi` | Handler 200/400/503, health, generate with fixture corpus |
 | `cli` | Dispatch to subcommands, deprecated `-fetch` warning |
 
@@ -119,7 +131,7 @@ Measure with `go test -coverprofile=coverage.out ./...`.
 |-----------|-------------|--------|
 | T1 | Audit doc (this plan) + README checklist updated | ~0.25 day |
 | T2 | Client gap tests (token-once, empty token, headers on retry) | ~0.5 day |
-| T3 | `testdata/corpus` wired into names tests | ~0.25 day (with SAMPLE-CORPUS S4) |
+| T3 | `testdata/corpus` wired into forge tests | ~0.25 day | **Done** (SAMPLE-CORPUS S4) |
 | T4 | httpapi httptest suite | ~0.5 day (with HTTP-API H2) |
 | T5 | CI: vet + build + coverage artifact | ~0.5 day (CI-INFRA C1) |
 | T6 | Race detector on `igdb` after concurrent fetch | ~0.25 day |

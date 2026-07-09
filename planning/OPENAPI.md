@@ -50,13 +50,30 @@ info:
 | Path | Method | Operation ID |
 |------|--------|--------------|
 | `/health` | GET | getHealth |
-| `/generate/game-name` | GET | generateGameName |
-| `/generate/character-name` | GET | generateCharacterName |
+| `/generate/game-name` | GET, POST | generateGameName |
+| `/generate/character-name` | GET, POST | generateCharacterName |
+| `/genres` | GET | listGenres |
+| `/platforms` | GET | listPlatforms |
+| `/strategies` | GET | listStrategies |
 | `/meta` | GET | getMeta |
 
 ### Shared parameters
 
-Document query params from HTTP-API plan: `genre`, `platform`, `strategy`, `seed`, `count`.
+Query params: `genre` (int), `platform` (int), `strategy` (string), `seed` (string), `count` (int, max 10), `locale` (string, LOCALIZATION).
+
+POST body (`GenerateRequest`):
+
+```yaml
+GenerateRequest:
+  type: object
+  properties:
+    count: { type: integer, maximum: 10 }
+    genre: { type: integer }
+    platform: { type: integer }
+    strategy: { type: string, enum: [pick, concat] }
+    seed: { type: string }
+    locale: { type: string }
+```
 
 ### Response schemas
 
@@ -69,17 +86,21 @@ components:
         status: { type: string }
         corpus_loaded: { type: boolean }
         game_count: { type: integer }
+        character_count: { type: integer }
+        data_dir: { type: string }
+        loaded_at: { type: string, format: date-time }
     GenerateResponse:
       type: object
       properties:
         names: { type: array, items: { type: string } }
         strategy: { type: string }
         seed: { type: string }
+        warning: { type: string, description: "Partial batch success (NAME-QUALITY)" }
     ErrorResponse:
       type: object
       properties:
         error: { type: string }
-        code: { type: string }
+        code: { type: string, enum: [bad_request, quality_exhausted, internal] }
 ```
 
 ### Servers
@@ -110,7 +131,7 @@ Mirror IGDB Bruno style under `bruno/api/`:
 
 - Environment: `base_url: http://localhost:8080`
 - Requests match OpenAPI paths and query examples
-- Useful for manual QA after `vargames-name-gen serve`
+- Useful for manual QA after `vargames-name-gen serve` (not `-serve` flag)
 
 ## CI Integration
 
@@ -132,7 +153,7 @@ Do not require spec-to-implementation diff tooling in v1.
 | A2 | `bruno/api/` collection | ~0.25 day |
 | A3 | README "API" section with link to spec | ~0.1 day |
 | A4 | Spectral lint in CI | ~0.25 day |
-| A5 | Add `/meta`, `/metrics` to spec when implemented | ~0.25 day |
+| A5 | Add `/genres`, `/platforms`, `/strategies`, POST bodies | ~0.25 day |
 
 **Total estimate:** ~1–1.5 days.
 

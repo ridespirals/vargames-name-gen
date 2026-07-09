@@ -2,14 +2,14 @@
 
 ## Goal
 
-Let developers and CI run the `names` package and HTTP handlers **without IGDB credentials** or a multi-hour fetch, using a small committed corpus with valid IGDB-shaped JSON.
+Let developers and CI run the `forge` package and HTTP handlers **without IGDB credentials** or a multi-hour fetch, using a small committed corpus with valid IGDB-shaped JSON.
 
 ## Current Foundation
 
 - **Production data:** `data/` is gitignored; requires `-fetch` with Twitch credentials
-- **Tests:** [`main_test.go`](../main_test.go) uses in-memory fake results; no shared corpus fixtures yet
-- **Blocker:** Anyone cloning the repo cannot try name generation until they fetch from IGDB
-- **Planned consumer:** [`forge.LoadFromDir`](./FORGE-PACKAGE.md) (M1 implemented)
+- **Fixtures:** `testdata/corpus/` — all 7 entity JSON files committed (~10 games, 10 characters, etc.)
+- **Tests:** [`corpus_test.go`](../src/forge/corpus_test.go) and [`forge.TestCorpusDir`](../src/forge/testutil.go) use fixtures
+- **Consumer:** [`forge.LoadFromDir`](./FORGE-PACKAGE.md) (M1 implemented); default data dir prefers `testdata/corpus`
 
 ## Proposed Architecture
 
@@ -20,7 +20,7 @@ flowchart LR
   end
 
   subgraph consumers [Consumers]
-    UnitTests[names + httpapi tests]
+    UnitTests[forge + httpapi tests]
     LocalDev["go run ./cmd/forge title"]
     CI[CI integration tests]
   end
@@ -48,7 +48,7 @@ testdata/corpus/
 
 | Requirement | Detail |
 |-------------|--------|
-| **Shape** | Valid IGDB API response arrays; fields match what `names` minimal structs expect |
+| **Shape** | Valid IGDB API response arrays; fields match what `forge` minimal structs expect |
 | **Size** | Small enough to commit (< 100 KB total); 5–20 records per entity |
 | **Content** | Hand-crafted or truncated from public domain / well-known titles; no secrets |
 | **Coverage** | At least 3 genres and 2 platforms represented in `games.json` for weighting tests |
@@ -79,20 +79,22 @@ Document in root README under a "Try without credentials" section (pointer only;
 
 ### CI
 
-- No IGDB secrets required for names/httpapi integration tests
+- No IGDB secrets required for forge/httpapi integration tests
 - See [TEST-COVERAGE.md](./TEST-COVERAGE.md) and [CI-INFRA.md](./CI-INFRA.md)
 
 ## Milestones
 
-| Milestone | Deliverable | Effort |
-|-----------|-------------|--------|
-| S1 | `testdata/corpus/` JSON fixtures for games, genres, platforms, characters | ~0.5 day |
-| S2 | Optional fixtures: alternative_names, collections, companies | ~0.25 day |
-| S3 | `testdata/corpus/README.md` with provenance | ~0.25 day |
-| S4 | `forge` loader tests against fixtures | ~0.25 day (with FORGE-PACKAGE M1) |
-| S5 | Root README pointer to sample corpus workflow | ~0.1 day |
+| Milestone | Deliverable | Effort | Status |
+|-----------|-------------|--------|--------|
+| S1 | `testdata/corpus/` JSON fixtures for games, genres, platforms, characters | ~0.5 day | **Done** |
+| S2 | Optional fixtures: alternative_names, collections, companies | ~0.25 day | **Done** |
+| S3 | `testdata/corpus/README.md` with provenance | ~0.25 day | **Done** |
+| S4 | `forge` loader tests against fixtures | ~0.25 day | **Done** |
+| S5 | Root README pointer to sample corpus workflow | ~0.1 day | **Done** |
+| S6 | CJK alt-name fixtures for LOCALIZATION tests | ~0.25 day | Pending |
+| S7 | `scripts/truncate-corpus.sh` to slice `data/` → fixtures | ~0.25 day | Pending |
 
-**Total estimate:** ~1–1.5 days (S1–S3 can ship before names package exists).
+**Total estimate:** ~1–1.5 days (S1–S2, S4–S5 complete; S3, S6–S7 remain).
 
 ## Open Decisions
 

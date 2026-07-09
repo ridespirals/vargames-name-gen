@@ -111,14 +111,64 @@ go run . -fetch=games -incremental
 
 ### Not yet implemented
 
-- Auto fallback to full re-pull when >N% of rows changed
+- Auto fallback to full re-pull when >N% of rows changed (D2)
 - Per-entity incremental metrics in HTML report
+
+### D2 — Full re-pull threshold
+
+When `-incremental` detects more than **5%** of IDs as changed/new/removed, auto-fallback to full fetch and log reason.
+
+| Config | Default | Description |
+|--------|---------|-------------|
+| `IGDB_INCREMENTAL_MAX_CHANGE_PCT` | `5` | Max changed fraction before full re-pull |
+| `-incremental-max-change` | from env | CLI override |
+
+Override with `-incremental-force` to always use checksum path regardless of change volume.
+
+### Entity fetch ordering
+
+Recommended order for multi-entity pulls (reference tables first):
+
+```
+genres,platforms → games,characters → alternative_names,collections,companies
+```
+
+### Fetch dry-run (planned)
+
+`fetch games --dry-run` — call `/count` only; estimate pages, bytes (from profile), and duration. No writes.
+
+### Idempotency
+
+Same profile + stable IGDB data → same `data/<entity>.json` after full fetch. Incremental merge is deterministic given prior corpus + checksums.
+
+### Partial + incremental interaction
+
+| Scenario | Contract |
+|----------|----------|
+| `.partial.json` exists, `-incremental` | Warn; require completing fetch or `--fresh` |
+| `forge` loader | Skips `*.partial.json`; requires complete `<entity>.json` |
+
+See [CORPUS-LIFECYCLE.md](./CORPUS-LIFECYCLE.md).
 
 ## Phase E — Reporting Enhancements
 
 - Add `data/<entity>-summary.json` alongside HTML (retry distribution, status codes)
 - Include count mismatch and partial-failure sections in HTML report
 - Optional: master `data/index.html` linking all reports (see `CI-INFRA.md` for GitHub Pages hosting)
+
+### `summary.json` schema (shared with OBSERVABILITY)
+
+```json
+{
+  "entity": "games",
+  "requests": 700,
+  "total_retries": 12,
+  "status_codes": { "200": 695, "429": 5 },
+  "error_classes": { "rate_limit": 5 },
+  "duration_ms": { "p50": 320, "p95": 890, "max": 2100 },
+  "igdb_error_samples": ["rate limit exceeded"]
+}
+```
 
 ## Milestones
 
@@ -158,3 +208,4 @@ go run . -fetch=games -incremental
 - [FETCH-PROFILES.md](./FETCH-PROFILES.md) — field selection registry
 - [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) — consumes `data/*.json` output
 - [CI-INFRA.md](./CI-INFRA.md) — CI for fetch tests; GitHub Pages for reports
+- [CORPUS-LIFECYCLE.md](./CORPUS-LIFECYCLE.md) — partial/incremental interaction rules

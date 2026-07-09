@@ -2,37 +2,22 @@
 
 Go-based tooling for ingesting data from the Internet Game Database (IGDB) and using it as training/seed data for generating game- and character-related names.
 
-For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGENTS.md).
+| Doc | Purpose |
+|-----|---------|
+| [`AGENTS.md`](AGENTS.md) | Agent/developer guide — **start here for implementation state** |
+| [`planning/README.md`](planning/README.md) | Roadmap, plan index, execution waves |
+| [`planning/CORPUS-LIFECYCLE.md`](planning/CORPUS-LIFECYCLE.md) | End-to-end fetch → load → generate flow |
 
----
+### What's implemented
 
-### TODO / Future
+- **IGDB fetch** — concurrent paging, `-partial`, `-incremental`, per-entity fetch profiles (`minimal` default)
+- **Forge generation** — `pick` and `concat` strategies for game titles and character names; genre weighting
+- **CLI** — `generate title|character` (no IGDB creds); `cmd/forge` standalone binary; flat `-fetch=` flags for IGDB pulls
+- **Offline corpus** — `testdata/corpus/` for dev/CI without credentials
 
-- ~~Use `/count` endpoints to enable fanout~~ — implemented (concurrent paging)
-- ~~Checksum-based change detection / incremental re-fetch~~ — implemented (`-incremental`, see below)
-- Utilize more github features?
-  - obviously running unit tests on PRs or commits would be good. we have no "deployment" currently, so it's unclear where exactly this would happen, but if I make a habit of doing PRs once we reach a baseline level of functionality, that's one place we could do it
-  - use Issues to track TODOs/future development (or even actual bugs if I find them) (ie. this list)
-  - Expand the generated reports and stuff into a more fleshed-out site (at least a master page that can link to/navigate between the other pages) and host it with github pages
-  - Eventually it would be cool to deploy this to aws or something (it has to be 100% free no matter what), so using github actions for that would be nice
+### What's next
 
-## Client unit tests
-
-1. Token caching: only fetch token once
-  - Configure the fake so the token endpoint returns a valid token on the first call.
-  - Call client.Post twice and assert the token endpoint was only hit once.
-  - (You don’t need wall-clock time; just ensure the second Post happens “before expiry” using a large expires_in.)
-2. Token error handling
-  - Token endpoint returns 200 but without access_token (or with an empty token).
-  - Assert client.Post fails with an “empty access_token” style error.
-3. Retry eligibility: 429 triggers retries
-  - Script 429, 429, 200 and assert retries happened and you end on success.
-4. Context cancellation mid-retry
-  - Script retriable failures, then cancel the context while it’s between retries.
-  - Assert the returned error is context.Canceled (or wraps it) and that no further HTTP calls occur after cancellation.
-5. Header correctness beyond auth
-  - Assert Content-Type is text/plain and Client-Id is set on every IGDB call.
-  - (Your success test already checks headers, but you can generalize it across retry attempts too.)
+See [planning/README.md](planning/README.md). Top items: HTTP API, `fetch` subcommand migration, NAME-QUALITY filters, title CLI `-genre`, Markov strategy.
 
 ---
 
@@ -48,6 +33,7 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
     - `IGDB_MAX_CONCURRENT` (parallel pages per entity; default `4`)
     - `IGDB_FETCH_PROFILE` (default `minimal`; also `full`, `checksum`)
     - `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging)
+    - `VARGAMES_DATA_DIR` (corpus directory for generation; see `src/cli/flags.go`)
 
 - **IGDB client**
   - Handles Twitch OAuth client‑credentials flow (or uses `IGDB_ACCESS_TOKEN` if set).
@@ -64,6 +50,13 @@ For deeper architectural notes and agent-facing guidance, see [`AGENTS.md`](AGEN
   - **Incremental re-fetch** (`-incremental`): checksum scan + selective `where id = (...)` pulls; writes `data/<entity>-checksums.json`.
   - **Partial failure** (`-partial`): continue other entities/pages; write `data/<entity>.partial.json` when needed.
   - **Metadata**: `data/<entity>-meta.json` after each run (counts, profile, incremental stats).
+
+- **Name generation (`forge`)**
+  - Loads IGDB-shaped JSON from `data/` or `testdata/corpus/`
+  - **Game titles:** `pick` (reservoir sample) or `concat` (splice/mutate fragments); optional genre filter
+  - **Character names:** same strategies; genre filter via character→game→genre join
+  - Basic quality rejects: length, charset, exact corpus match (`forge.RejectTitle`)
+  - Env: `VARGAMES_DATA_DIR` overrides default corpus directory
 
 - **Metrics and reports**
   - Per-request metrics:
@@ -135,7 +128,30 @@ You should see:
 Hello from vargames-name-gen (IGDB config loaded, base URL: https://api.igdb.com/v4)
 ```
 
-#### Fetching entities
+#### Generating names (no IGDB credentials)
+
+Uses committed sample corpus by default (`testdata/corpus/`). Override with `-data-dir=data` after fetching.
+
+```bash
+# Game titles
+go run . generate title -seed=42 -count=5
+go run . generate title -strategy=concat -count=3
+
+# Character names (-genre uses IGDB genre ID from genres.json)
+go run . generate character -seed=42 -count=3 -genre=12
+
+# Standalone forge binary (same commands, no "generate" prefix)
+go run ./cmd/forge title -seed=42 -count=5
+go run ./cmd/forge character -genre=12 -count=3
+
+# Build forge binary
+go build -o forge ./cmd/forge
+./forge title -count=3
+```
+
+**Note:** `-genre` works on `character` today; title genre filter is available in the API (`title.Options.GenreID`) but not yet wired to the title CLI.
+
+#### Fetching entities (requires IGDB credentials)
 
 Fetch one or more IGDB entities and write them to the `data/` directory.
 
@@ -201,32 +217,7 @@ Fetch one or more IGDB entities and write them to the `data/` directory.
 
   Combine with `-partial` to tolerate page failures during large pulls.
 
-#### Forging titles (no IGDB credentials)
-
-Try generation with the committed sample corpus:
-
-```bash
-go run ./cmd/forge title -seed=42 -count=5
-```
-
-Or via the main binary (skips IGDB config when using `generate`):
-
-```bash
-go run . generate title -seed=42 -count=5
-```
-
-Use `-data-dir=data` after fetching, or `VARGAMES_DATA_DIR` to override the default (`testdata/corpus` when present).
-
-Build the forge binary:
-
-```bash
-go build -o forge ./cmd/forge
-./forge title -count=3
-```
-
 ---
-
-### Data & reports
 
 - **Data directory**: `data/`
   - Raw IGDB responses:
@@ -249,64 +240,47 @@ These JSON files are the **offline corpus** for procedural generation in the [`f
 
 ### Tests
 
-CI runs `go fix ./...` and fails if that would change any files — run it locally before pushing:
+CI (`.github/workflows/ci-tests.yml`) runs `go fix ./...` (must be clean) then `go test -v ./...` on push/PR.
 
 ```bash
 go fix ./...
 go test ./...
 ```
 
-- **All packages**
+| Package | Command |
+|---------|---------|
+| All | `go test ./...` |
+| Forge + CLI | `go test ./src/forge/... ./src/cli/... -v` |
+| IGDB client/fetcher | `go test ./src/igdb/... -v` |
+| Main helpers | `go test . -v` |
 
-  ```bash
-  go test ./...
-  ```
+Client test gaps and coverage targets: [planning/TEST-COVERAGE.md](planning/TEST-COVERAGE.md).
 
-- **Unit tests** for the forge CLI and generation:
-
-  ```bash
-  go test ./src/cli/... -v
-  ```
-
-- **Unit tests** for the IGDB client and fetcher:
-
-  ```bash
-  go test ./src/igdb/... -v
-  ```
-
-- **Unit tests** for the CLI/main package:
-
-  ```bash
-  go test . -v
-  ```
-
-Note: the repo no longer performs real IGDB network fetches as part of automated tests.
+No live IGDB network calls in automated tests. Corpus benchmarks: `go test -bench=BenchmarkLoadFromDir ./src/forge/...`
 
 ---
 
 ### Architecture overview
 
-High‑level flow (for fetches):
+```text
+IGDB API ──fetch (main.go -fetch=…)──► data/*.json
+                                           │
+testdata/corpus ──────────────────────────┤
+                                           ▼
+                              forge.LoadFromDir → Corpus
+                                           │
+                    ┌──────────────────────┴──────────────────────┐
+                    ▼                                              ▼
+            forge/title.GameTitle                      forge/identity.CharacterName
+                    │                                              │
+                    └──────────► CLI: generate / cmd/forge ◄──────┘
+                                           │
+                                    (planned: httpapi serve)
+```
 
-1. `main.go`
-   - Parses flags and config.
-   - Determines which entities to fetch.
-   - For each entity:
-     - Creates `Metrics` + `Client` + `Fetcher`.
-     - Runs `FetchAll` and writes JSON + HTML report.
+**Fetch path:** `main.go` → `igdb.Client` + `igdb.Fetcher` → JSON + meta + HTML reports.
 
-2. `config.Config`
-   - Encapsulates all environment‑driven configuration.
-   - Acts as a simple immutable value passed into the IGDB client.
+**Generate path:** `src/cli/generate.go` → `forge.LoadFromDir` → `title.New` / `identity.New` → stdout.
 
-3. `igdb.Client`
-   - Handles auth, retries, backoff, and low‑level HTTP transport.
-
-4. `igdb.Fetcher`
-   - Implements offset/limit paging for specific IGDB entities (`games`, `genres`, etc.).
-
-5. `igdb.Metrics` + `report.go`
-   - Records and visualizes performance and reliability characteristics.
-
-For more detail on types, options, and future plans, see **`AGENTS.md`**.
+Details: [`AGENTS.md`](AGENTS.md), [`planning/CORPUS-LIFECYCLE.md`](planning/CORPUS-LIFECYCLE.md).
 

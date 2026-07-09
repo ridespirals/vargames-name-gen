@@ -25,6 +25,22 @@ This document captures the current intent and design of the project so other dev
 
 ### 2. Current State of the Codebase
 
+**Implementation snapshot (sync with `planning/README.md` before large changes):**
+
+| Area | Status | Key paths |
+|------|--------|-----------|
+| IGDB fetch pipeline | **~85% done** | `main.go`, `src/igdb/` — concurrent paging, partial, incremental, profiles |
+| Forge corpus load | **~90% done** | `src/forge/corpus.go` — `LoadFromDir`, 7 entities |
+| Title generation | **~60% done** | `src/forge/title/` — `GameTitle`, `pick`/`concat`, genre filter |
+| Identity generation | **~55% done** | `src/forge/identity/` — `CharacterName`, genre join via games |
+| CLI `generate` | **Done** | `src/cli/generate.go`, `cmd/forge/` — title + character |
+| CLI `fetch` subcommand | **Pending** | Still flat `-fetch=` flags in `main.go` |
+| HTTP API | **Not started** | No `src/httpapi/` |
+| Sample corpus | **Done** | `testdata/corpus/` (7 JSON files + README) |
+| CI | **Basic** | `go fix` + `go test ./...` on push/PR |
+
+**Next priorities:** title CLI `-genre`, NAME-QUALITY Q1+, `fetch` subcommand migration, HTTP API H1–H4. See [planning/README.md](planning/README.md).
+
 **Language / Tooling**
 
 - Go module: `vargames-name-gen`
@@ -39,11 +55,12 @@ This document captures the current intent and design of the project so other dev
 
 - `main.go`
   - Entrypoint for the CLI.
-  - Responsibilities:
+  - **Subcommand dispatch:** if `os.Args[1] == "generate"`, delegates to `cli.RunGenerate` **before** `config.Load()` (no IGDB credentials needed).
+  - Responsibilities (fetch / default path):
     - Loads configuration via `config.Load()`.
     - Builds a logger from `-verbose` flag and/or `Config.Verbose`.
-    - When `-fetch` is **empty**:
-      - Just validates config and prints:
+    - When `-fetch` is **empty** and no `generate` subcommand:
+      - Validates config and prints:
         - `"Hello from vargames-name-gen (IGDB config loaded, base URL: %s)\n"`.
     - When `-fetch` is **set**:
       - Accepts a **comma-separated list** of entities:
@@ -125,6 +142,7 @@ This document captures the current intent and design of the project so other dev
           - Optional `IGDB_MAX_CONCURRENT` (int; default `4`).
           - Optional `IGDB_FETCH_PROFILE` (`full`, `minimal`, `checksum`; default `minimal`).
           - Optional `IGDB_VERBOSE` / `VARGAMES_VERBOSE` (enable verbose logging; accepts `1`, `true`, `on`, `yes`).
+  - Optional `VARGAMES_DATA_DIR` (corpus path for `generate` / `cmd/forge`; not read by `config.Load()` — see `src/cli/flags.go`).
         - Fails if required vars missing:
           - `missing required environment variable IGDB_CLIENT_ID`
           - `missing required environment variable IGDB_CLIENT_SECRET`
@@ -286,20 +304,32 @@ This document captures the current intent and design of the project so other dev
     - Per-request records (`PostRecord`: endpoint, retries, duration).
   - Used by `main` and `report.go` to generate HTML fetch reports.
 
-- `src/forge/` — corpus loader (`LoadFromDir`, minimal IGDB structs); see `planning/FORGE-PACKAGE.md`
-  - `src/forge/title/` — game titles, collections, subtitle/alt-name extras (generation in progress)
-  - `src/forge/identity/` — character and company names (generation in progress)
+- `src/forge/` — corpus loader; see `planning/FORGE-PACKAGE.md`
+  - `corpus.go` — `LoadFromDir`, `Corpus`, minimal structs for all 7 entities
+  - `normalize.go` — `NewRand`, `NormalizeTitle`, `TokenizeTitle`, `RejectTitle`, `SourceTitleSet` (Q0 quality rules)
+  - `testutil.go` — `TestCorpusDir(t)` for tests
+  - `src/forge/title/` — `Generator`, `GameTitle(opts)`; strategies `pick`, `concat`; `Options.GenreID`, `Options.Strategy`, `Options.Seed`
+    - Genre filter via `filterGamePool`; subtitle mutations in `extras.go`
+    - **Pending:** `CollectionTitle`, `markov`, platform weighting, strategy registry
+  - `src/forge/identity/` — `Generator`, `CharacterName(opts)`; strategies `pick`, `concat`
+    - Genre filter via character→game→genre join in `filter.go`
+    - **Pending:** `CompanyName`, markov, strategy registry
 
-- `src/httpapi/` or `src/server/` (not yet implemented)
-  - HTTP handlers exposing:
-    - `/generate/game-name` (with optional `genre`, `platform`, `seed` params).
-    - `/generate/character-name`, etc.
+- `src/cli/` — shared CLI logic (`planning/CLI-STRUCTURE.md`)
+  - `generate.go` — `RunGenerate`, `RunForge`, `GenerateTitles`, `GenerateIdentities`
+  - `flags.go` — `DefaultDataDir()` → `VARGAMES_DATA_DIR`, else `testdata/corpus` (if present), else `data/`
+  - Subcommands: `generate title|game`, `generate character|identity`
+  - Title flags: `-data-dir`, `-seed`, `-count`, `-strategy` (`pick`|`concat`)
+  - Character flags: above + `-genre` (IGDB genre ID)
+  - **Gap:** `-genre` not wired for `generate title` (API supports it via `title.Options.GenreID`)
+  - **Pending:** `fetch.go`, `serve.go`, `validate.go`, `list.go`
 
-- `src/cli/` (partially covered by current `main.go`)
-  - Commands like:
-    - `fetch-games`
-    - `generate-game-name`
-  - Could be wired through subcommands or flags to the `main` binary.
+- `cmd/forge/main.go` — standalone binary calling `cli.RunForge`; no IGDB credentials ever
+
+- `src/httpapi/` — **not implemented** (planned: `serve` subcommand, `/health`, `/generate/*`)
+
+- `planning/` — design docs and roadmap; start at `planning/README.md`
+- `research/` — APICALYPSE reference, corpus loading benchmarks, storage options
 
 These are **guidelines** meant to keep the project modular and testable.
 
@@ -307,30 +337,29 @@ These are **guidelines** meant to keep the project modular and testable.
 
 ### 5. How to Continue From Here
 
-Good next steps for any developer or agent:
+**Immediate next work (Wave 2):**
 
-1. **Leverage fetched data for procedural generation**
-   - Extend `forge` / `forge/title` / `forge/identity`:
-     - Consumes `data/*.json` (or `testdata/corpus`)
-     - Produces titles, character names, etc. via concat/Markov strategies
-     - Supports weighting by genre/platform using fetched metadata
+1. **Forge polish** — `generate title -genre`, platform weighting (M3b), corpus mtime cache (M7)
+2. **NAME-QUALITY** — `forge/quality` subpackage (profanity, batch dedup); Q0 already in `RejectTitle`
+3. **CLI-STRUCTURE** — migrate `-fetch` → `fetch` subcommand; add `validate corpus`, `list genres`
+4. **TEST-COVERAGE** — close client gaps (`TestPost_TokenFetchedOnce`, etc.); CI vet/build
 
-2. **Add a small HTTP API**
-   - Expose endpoints such as:
-     - `GET /generate/game-name?genre=<id>&seed=<string>`.
-     - `GET /generate/character-name?...`.
-   - Internally:
-     - Load pre-fetched JSON (or a DB/embedded store) at startup.
-     - Delegate generation to `forge/title` and `forge/identity`
+**Wave 3 (after forge + quality):**
 
-3. **Enhance reporting and observability**
-   - Add per-entity summary JSON alongside the HTML reports (Phase E in `planning/FETCH-ROBUSTNESS.md`).
-   - Capture and display IGDB status codes/error messages in the report.
-   - Optionally, add Prometheus metrics or structured logs for fetch runs.
+5. **HTTP-API** — `src/httpapi/`, `serve` subcommand, `/generate/game-name` + `/generate/character-name`
+6. **IGDB-COMPLIANCE** — attribution in reports/API before public deploy
+7. **CI-INFRA** — hardened CI, GitHub Pages for fetch reports
 
-4. **Fetch profiles and incremental sync (mostly done)**
-   - Per-entity profile overrides (P5 in `planning/FETCH-PROFILES.md`).
-   - Auto full re-pull when too many checksum changes (D2 in `planning/FETCH-ROBUSTNESS.md`).
+**Mostly done (maintain, don't re-plan):**
+
+- IGDB fetch: concurrent paging, `-partial`, `-incremental`, fetch profiles (`planning/FETCH-ROBUSTNESS.md`, `FETCH-PROFILES.md`)
+- Forge M1–M4: load, title/character generation with genre filtering (`planning/FORGE-PACKAGE.md`)
+
+**Deferred until profiling demands it:**
+
+- SQLite embedded index (`planning/EMBEDDED-INDEX.md`)
+- Markov strategy (`FORGE-PACKAGE` M5)
+- Fetch resume/checkpoints (`planning/FETCH-RESUME.md`)
 
 Keep this file (`AGENTS.md`) updated when you make structural or architectural changes, especially to:
 - Configuration behavior.

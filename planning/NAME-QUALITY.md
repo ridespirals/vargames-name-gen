@@ -6,9 +6,22 @@ Apply post-generation filtering so names returned by the CLI and HTTP API are **
 
 ## Current Foundation
 
-- [`FORGE-PACKAGE.md`](./FORGE-PACKAGE.md) plans concat/Markov strategies with basic reject rules (length, exact corpus match)
-- No dedicated quality layer; no profanity handling; no batch deduplication
+- [`forge.RejectTitle`](../src/forge/normalize.go) — **Q0 implemented:** min/max length, charset, exact corpus match, all-caps noise, empty after normalize
+- [`FORGE-PACKAGE.md`](./FORGE-PACKAGE.md) — concat/pick strategies call Q0 rejects before returning
+- No dedicated `forge/quality` subpackage; no profanity handling; no batch deduplication
 - [HTTP-API.md](./HTTP-API.md) will expose generation publicly — quality gates are a prerequisite for deploy
+
+## Q0 — Already in `RejectTitle` (do not duplicate)
+
+| Rule | In `RejectTitle` | Moves to `quality` subpackage |
+|------|------------------|-------------------------------|
+| Min/max length | yes | configurable via `QualityOptions` wrapper |
+| Charset / noise | yes | strict ASCII option |
+| Exact corpus blocklist | yes (`SourceTitleSet`) | user-supplied blocklist file |
+| Profanity | no | Q4 |
+| Batch dedup | no | Q3 |
+| Markov garbage detection | no | future |
+| Character-specific rules | no | min/max word count, no digits |
 
 ## Proposed Architecture
 
@@ -98,9 +111,10 @@ Never return a name that failed any enabled filter.
 
 ## Milestones
 
-| Milestone | Deliverable | Effort |
-|-----------|-------------|--------|
-| Q1 | `Filter` interface + length/charset rules | ~0.5 day |
+| Milestone | Deliverable | Effort | Status |
+|-----------|-------------|--------|--------|
+| Q0 | Basic rejects in `RejectTitle` | — | **Done** |
+| Q1 | `Filter` interface + length/charset rules | ~0.5 day | Pending |
 | Q2 | Corpus exact-match blocklist | ~0.25 day |
 | Q3 | Batch deduplication | ~0.25 day |
 | Q4 | Embedded profanity list + levels | ~0.5 day |

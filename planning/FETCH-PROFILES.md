@@ -84,6 +84,46 @@ Wire into [`main.go`](../main.go) → `FetcherOptions.QueryPrefix` via `ProfileF
 | P4 | CLI/env `-fetch-profile` wired in `main` | **Done** |
 | P5 | Per-entity override flags (optional) | Pending |
 | P6 | Document profile → file size impact in README | **Done** (see root README) |
+| P7 | Measured impact table (post-minimal re-fetch) | Pending local re-fetch |
+
+## Measured / estimated impact
+
+| Entity | `full` (`fields *`) | `minimal` (estimated) | Notes |
+|--------|---------------------|----------------------|-------|
+| `games` | 351 MB (357k rows) | ~30–80 MB | Dominates load time; see [CORPUS-LOADING.md](../research/CORPUS-LOADING.md) |
+| `alternative_names` | 26 MB (196k rows) | ~8–15 MB | Large row count; lean fields help |
+| `characters` | 3.7 MB | ~1–2 MB | Already moderate |
+| `genres`, `platforms` | &lt;100 KB | unchanged | Small reference tables |
+
+Re-fetch command: `go run . -fetch=games,alternative_names -fetch-profile=minimal`
+
+Benchmark after re-fetch: `go test -bench=BenchmarkLoadFromDir_DataDir -benchtime=3x ./src/forge/...`
+
+## P5 — Per-entity override syntax (proposed)
+
+```bash
+# Global profile (today)
+go run . -fetch=games -fetch-profile=minimal
+
+# Per-entity overrides (planned)
+go run . -fetch=games,characters -fetch-profile=minimal -fetch-profile-games=full
+```
+
+Alternative: profile config file `fetch-profiles.yaml` mapping entity → profile name.
+
+## Optional `era` profile (future)
+
+For decade-based weighting in forge, a future profile variant may add `first_release_date`:
+
+```apicalypse
+fields id,name,genres,platforms,first_release_date,checksum;
+```
+
+Defer until FORGE era-weighting milestone; stay lean for names-only v1.
+
+## Profile versioning
+
+Record `profile_version: 1` in `*-meta.json` when schema of minimal field sets changes — aids corpus migration and EMBEDDED-INDEX import.
 
 ## Open Decisions
 

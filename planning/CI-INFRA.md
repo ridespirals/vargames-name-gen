@@ -13,11 +13,11 @@ Establish reliable automation around testing, visibility into fetch runs, and (e
 | **Data** | `data/` gitignored — fetch artifacts are local only |
 | **Reports** | Per-entity HTML in `data/<entity>-report.html` (generated at fetch time, not published) |
 | **Deployment** | None |
-| **Issue tracking** | README TODO list inline; no GitHub Issues workflow |
+| **Issue tracking** | Planning roadmap in `planning/README.md`; no GitHub Issues workflow yet |
 
-README TODO items this plan addresses:
+README/planning items this plan addresses:
 
-- Unit tests on PRs/commits (partially done)
+- Unit tests on PRs/commits (**done** — `ci-tests.yml`)
 - GitHub Issues for TODOs/bugs
 - Fetch report site on GitHub Pages
 - Free AWS deployment via GitHub Actions

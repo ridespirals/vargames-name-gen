@@ -264,7 +264,7 @@ limit 5;
 <QueryPrefix> limit <L>; offset <page * L>;
 ```
 
-Default `<QueryPrefix>` is `fields *;` (see [`entities.go`](../src/igdb/entities.go)). Planned lean profiles are in [FETCH-PROFILES.md](../planning/FETCH-PROFILES.md).
+Default `<QueryPrefix>` for fetch is the **`minimal`** profile via [`ProfileFor`](../src/igdb/profiles.go) / [`QueryPrefixForEntity`](../src/igdb/entities.go). Use `-fetch-profile=full` for archival `fields *;`. See [FETCH-PROFILES.md](../planning/FETCH-PROFILES.md).
 
 ---
 

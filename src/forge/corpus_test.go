@@ -77,3 +77,43 @@ func TestLoadFromDir_InvalidJSON(t *testing.T) {
 		t.Fatal("expected error for invalid JSON")
 	}
 }
+
+func benchmarkCorpusDir(b *testing.B) string {
+	b.Helper()
+	candidates := []string{
+		filepath.Join("..", "..", "testdata", "corpus"),
+		filepath.Join("..", "..", "..", "testdata", "corpus"),
+	}
+	for _, dir := range candidates {
+		if _, err := os.Stat(filepath.Join(dir, "games.json")); err == nil {
+			return dir
+		}
+	}
+	b.Fatalf("test corpus not found (tried %v)", candidates)
+	return ""
+}
+
+func BenchmarkLoadFromDir_SampleCorpus(b *testing.B) {
+	dir := benchmarkCorpusDir(b)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := LoadFromDir(dir); err != nil {
+			b.Fatalf("LoadFromDir: %v", err)
+		}
+	}
+}
+
+// BenchmarkLoadFromDir_DataDir measures production corpus load time when data/ exists.
+// Skipped in CI; run locally: go test -bench=BenchmarkLoadFromDir_DataDir -benchtime=3x ./src/forge/...
+func BenchmarkLoadFromDir_DataDir(b *testing.B) {
+	const dir = "data"
+	if _, err := os.Stat(filepath.Join(dir, "games.json")); err != nil {
+		b.Skip("data/games.json not present; fetch or copy corpus to benchmark")
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := LoadFromDir(dir); err != nil {
+			b.Fatalf("LoadFromDir: %v", err)
+		}
+	}
+}

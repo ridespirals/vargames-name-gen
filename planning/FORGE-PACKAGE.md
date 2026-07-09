@@ -9,9 +9,9 @@ Turn fetched JSON in `data/` into a reusable library that forges **game-world te
 - **Fetch output:** `data/<entity>.json` — arrays of raw IGDB objects
 - **Entities loaded:** `games`, `characters`, `alternative_names`, `collections`, `companies`, `genres`, `platforms`
 - **`src/forge/`** — corpus loader (`LoadFromDir`, minimal structs)
-- **`src/forge/title/`** — title-family generator shell (games, collections, subtitle extras)
-- **`src/forge/identity/`** — identity-family generator shell (characters, companies)
-- **`main.go`** — fetch; `generate title` subcommand (no IGDB creds)
+- **`src/forge/title/`** — `GameTitle` with `pick`/`concat`, genre filtering, subtitle mutations
+- **`src/forge/identity/`** — `CharacterName` with `pick`/`concat`, genre join via `characters.games[]` → `games.genres[]`
+- **`main.go`** — fetch; `generate title` / `generate character` subcommands (no IGDB creds)
 - **`cmd/forge`** — standalone forge CLI (dev loop, no IGDB creds)
 - **`src/cli/`** — shared `GenerateTitles`, `RunGenerate`, `RunForge`
 
@@ -44,11 +44,43 @@ flowchart TB
   end
 
   subgraph shared [forge — shared utilities]
-    Normalize[normalize]
+    Normalize[normalize + RejectTitle]
     Seed[seed]
     Corpus --> Normalize
   end
+
+  subgraph strategies [Strategy interface - M9]
+    Pick[pick]
+    Concat[concat]
+    Markov[markov - M5]
+  end
+
+  TitleGen --> strategies
+  strategies --> Quality[quality.FilterChain - planned]
 ```
+
+Shared options across subpackages: `Seed`, `GenreID`, `PlatformID` (M3b), `Locale` (LOCALIZATION).
+
+## Strategy Interface (M9)
+
+```go
+// forge/title (identity mirrors pattern)
+type Strategy interface {
+    Name() string
+    Generate(ctx GenerateContext) (string, error)
+}
+```
+
+Built-in strategies: `pick` (reservoir), `concat` (splice/mutate). `markov` added in M5. See [GENERATION-STRATEGIES.md](./GENERATION-STRATEGIES.md) for plugin registry.
+
+## Quality Layering
+
+| Layer | Location | Status |
+|-------|----------|--------|
+| Q0 — length, charset, exact corpus match, noise | [`forge.RejectTitle`](../src/forge/normalize.go) | **Implemented** |
+| Q1–Q6 — profanity, batch dedup, retry loop | `forge/quality` (planned) | Pending |
+
+See [NAME-QUALITY.md](./NAME-QUALITY.md). Avoid duplicating Q0 rules in the quality subpackage.
 
 ## Package Layout
 
@@ -130,11 +162,11 @@ Each subpackage owns its `Options` and extras; shared concerns (`normalize`, `se
 - Soft weighting: 80% matching genre, 20% global pool
 - `alternative_names` as mutation tokens in `title`, not direct output
 
-### Phase 4 — Identity (`forge/identity`)
+### Phase 4 — Identity (`forge/identity`) ✅ (core)
 
-- Character names from `characters` pool
-- Company labels from `companies`
-- Genre weighting via `characters.games[]` → `games.genres[]`
+- Character names from `characters` pool — **done** (`CharacterName`)
+- Genre weighting via `characters.games[]` → `games.genres[]` — **done** (`identity/filter.go`)
+- Company labels from `companies` — pending (`CompanyName`, M4b)
 
 ## CLI Integration
 
@@ -143,11 +175,15 @@ Shared logic lives in [`src/cli/generate.go`](../src/cli/generate.go). Two entry
 ```bash
 # Main binary — generate subcommand skips IGDB config
 go run . generate title -seed=42 -count=5
+go run . generate character -seed=42 -count=3 -genre=12
 
 # Forge binary — no IGDB credentials required (recommended for dev)
 go run ./cmd/forge title -seed=42 -count=5
+go run ./cmd/forge character -seed=42 -count=3
 go run ./cmd/forge title -data-dir=data -strategy=concat
 ```
+
+**CLI gap:** `-genre` is wired for `character` but not yet for `generate title` (API supports `title.Options.GenreID`).
 
 Default corpus: `testdata/corpus` when present, else `data/` (override with `-data-dir` or `VARGAMES_DATA_DIR`).
 
@@ -166,30 +202,38 @@ No live IGDB calls in tests.
 
 ## Milestones
 
-| Milestone | Deliverable | Package | Effort |
-|-----------|-------------|---------|--------|
-| M1 | `corpus.go` + `LoadFromDir` + subpackage shells | `forge`, `title`, `identity` | ~1 day |
-| M2 | `GameTitle` with reservoir + concat | `forge/title` | ~1 day |
-| M3 | Genre filtering | `forge/title` | ~0.5 day |
-| M4 | `CharacterName` (+ company later) | `forge/identity` | ~0.5 day |
-| M5 | Markov strategy | `forge/title` | ~1–2 days |
-| M6 | CLI (`generate` + `cmd/forge`) | `main`, `cmd/forge`, `src/cli` | ~0.5 day | **partial** (title only) |
+| Milestone | Deliverable | Package | Effort | Status |
+|-----------|-------------|---------|--------|--------|
+| M1 | `corpus.go` + `LoadFromDir` + subpackage shells | `forge`, `title`, `identity` | ~1 day | **Done** |
+| M2 | `GameTitle` with reservoir + concat | `forge/title` | ~1 day | **Done** |
+| M3 | Genre filtering | `forge/title` | ~0.5 day | **Done** |
+| M3b | Platform weighting (filter or 80/20 blend) | `forge/title` | ~0.5 day | Pending |
+| M4 | `CharacterName` + genre join | `forge/identity` | ~0.5 day | **Done** |
+| M4b | `CollectionTitle()`, `CompanyName()` | `forge/title`, `identity` | ~0.5 day | Pending |
+| M5 | Markov strategy | `forge/title` | ~1–2 days | Pending |
+| M6 | CLI (`generate` + `cmd/forge`) | `main`, `cmd/forge`, `src/cli` | ~0.5 day | **Partial** (title + character) |
+| M7 | Corpus mtime cache in CLI/server | `src/cli`, `httpapi` | ~0.25 day | Pending |
+| M8 | `LoadOptions` lazy entity loading | `forge` | ~0.5 day | Pending |
+| M9 | Strategy registry / plugin interface | `forge/title`, `identity` | ~1 day | Pending |
 
-**Total estimate:** ~4–6 days for v1 (M1–M4 + CLI).
+**Total estimate:** ~4–6 days for v1 (M1–M4 + CLI); ~3–4 days additional for M3b–M9.
 
 ## Open Decisions
 
-1. **Minimum corpus size** — `games.json` required for `title`; `characters.json` sufficient for `identity` alone?
-2. **Character genre weighting** — join through `games` in `identity` (Phase 4) or skip for v1?
+1. **Minimum corpus size** — `games.json` required for `title`; `characters.json` sufficient for `identity` alone? **Resolved:** yes.
+2. ~~**Character genre weighting**~~ — **Implemented** in `identity/filter.go`.
 3. **Output uniqueness** — guarantee "not in corpus" or allow low-probability collisions?
+4. **Platform weighting** — hard filter like genre, or soft 80% matching / 20% global blend?
 
-**Recommendation:** Require `games.json` for title generation; allow character-only corpus for identity. Defer character↔genre joins to M4+.
+**Recommendation:** Require `games.json` for title generation; allow character-only corpus for identity. Platform weighting: soft 80/20 blend (consistent with genre polish in Phase 3).
 
 ## Dependencies
 
 - Requires fetched data in `data/` (produced by `-fetch` CLI) or `testdata/corpus`
 - HTTP API (`HTTP-API.md`) depends on `forge/title` M2+
-- Corpus load performance: see [research/CORPUS-LOADING.md](../research/CORPUS-LOADING.md)
+- Corpus load performance: see [research/CORPUS-LOADING.md](../research/CORPUS-LOADING.md) (M7 cache)
+- [CORPUS-LIFECYCLE.md](./CORPUS-LIFECYCLE.md) — end-to-end data flow
+- [GENERATION-STRATEGIES.md](./GENERATION-STRATEGIES.md) — strategy plugin registry (M9)
 
 ## Related Plans
 

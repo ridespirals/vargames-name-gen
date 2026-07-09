@@ -8,11 +8,11 @@ Close **AGENTS.md item #4**: structured logging, richer per-request metrics, and
 
 | Area | Today |
 |------|-------|
-| Logging | [`igdb.Logger`](../src/igdb/logger.go) interface; `log.Printf` in `main`; verbose flag |
-| Metrics | [`igdb.Metrics`](../src/igdb/metrics.go): endpoint, retries, duration per `Post` |
-| Reports | [`report.go`](../report.go): HTML only; retry/duration distributions |
-| HTTP | Not implemented; no `/metrics` endpoint |
-| Status codes | Not recorded in metrics or reports |
+| Logging | [`igdb.Logger`](../src/igdb/logger.go); `log.Printf` in `main`; verbose flag |
+| Metrics | [`igdb.Metrics`](../src/igdb/metrics.go): endpoint, retries, duration per `Post` — **no status codes yet** |
+| Reports | [`report.go`](../report.go): HTML only |
+| HTTP | Not implemented |
+| Forge | No generation metrics |
 
 Partial overlap with [FETCH-ROBUSTNESS.md](./FETCH-ROBUSTNESS.md) Phase E (`-summary.json`).
 

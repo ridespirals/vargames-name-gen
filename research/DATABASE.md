@@ -39,9 +39,9 @@ A database becomes worth the complexity when you need **incremental sync**, **fi
 
 The pipeline is intentionally simple:
 
-1. Fetch IGDB pages via `igdb.Fetcher.FetchAll`
+1. Fetch IGDB pages via `igdb.Fetcher.FetchAll` (concurrent when `/count` available)
 2. Aggregate into `[]json.RawMessage`
-3. Write `data/<entity>.json` and an HTML report
+3. Write `data/<entity>.json`, `*-meta.json`, HTML report; optional `*-checksums.json` after `-incremental`
 
 ```go
 // main.go — write path today
@@ -51,9 +51,10 @@ os.WriteFile(outPath, raw, 0644)
 ```
 
 - `data/` is gitignored (large fetched corpus).
-- JSON files are intended as the **offline corpus** for name-generation experimentation.
-- The `names` package and HTTP API are not yet implemented.
-- README TODOs already point toward `/count` fanout and `checksum`-based change detection — features that push beyond "one big file per entity."
+- JSON files are the **offline corpus** for [`forge.LoadFromDir`](../src/forge/corpus.go).
+- **`forge` package is implemented** (M1–M4); HTTP API is not yet implemented.
+- **Checksum-based incremental sync** is implemented (`-incremental`, `data/<entity>-checksums.json`).
+- **Concurrent paging** via `GET /<entity>/count` is implemented.
 
 ---
 
@@ -77,7 +78,7 @@ os.WriteFile(outPath, raw, 0644)
 
 ### Verdict
 
-Keep JSON while building the `names` package and experimenting locally. It is the right tradeoff for a CLI tool with an offline corpus.
+Keep JSON while building the `forge` package and experimenting locally. It is the right tradeoff for a CLI tool with an offline corpus.
 
 ---
 
@@ -173,8 +174,8 @@ Add a queryable store when a **concrete feature** needs it — not preemptively.
 
 | Trigger | Suggested direction |
 |---------|---------------------|
-| Implementing `names` package v1 | Stay on JSON; load at startup |
-| Checksum-based incremental fetch | SQLite upserts (or Postgres if API already exists) |
+| Implementing `forge` package v1 | Stay on JSON; load at startup |
+| Checksum-based incremental fetch | **Done** — JSON merge + `*-checksums.json` (no DB required yet) |
 | `LoadFromDir` > ~5s or high RAM on target hardware | SQLite or embedded index (see EMBEDDED-INDEX plan) |
 | Genre/platform filtering without full memory load | SQLite with indexes |
 | Deployed HTTP API with concurrent readers | PostgreSQL (JSONB + indexed columns) |
@@ -186,7 +187,7 @@ Add a queryable store when a **concrete feature** needs it — not preemptively.
 
 ### 1. Now — JSON files
 
-- Implement `names` against `data/*.json`.
+- Implement `forge` against `data/*.json`.
 - Validate generation strategies before adding storage complexity.
 - Optionally add `data/<entity>-meta.json` for counts, checksums, and fetch metadata (see FETCH-ROBUSTNESS plan) without introducing a database.
 
@@ -219,7 +220,7 @@ Queryable store (SQLite locally, Postgres in production)
     ↓ optional export
 JSON snapshots (debugging, fixtures, SAMPLE-CORPUS)
     ↓ load
-names.Generator (in-memory indexes for hot paths)
+forge.Corpus + title/identity generators (in-memory indexes for hot paths)
 ```
 
 Treat IGDB as the source of truth. Use **files for snapshots** and a **queryable store only when a feature demands it**.
