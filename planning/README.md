@@ -14,7 +14,7 @@ For project overview and setup, see the root [README.md](../README.md) and [AGEN
 |-----------|------|---------|
 | **Fetch** | Concurrent paging, `-partial`, `-incremental`, profiles, meta/checksums/reports | `fetch` subcommand, resume, JSON summaries (Phase E), D2 threshold |
 | **Forge load** | `LoadFromDir`, 7 entities, `testdata/corpus` | Lazy load, mtime cache, SQLite |
-| **Title gen** | `GameTitle`, `pick`/`concat`, genre filter | `CollectionTitle`, Markov, platform weight, CLI `-genre` |
+| **Title gen** | `GameTitle`, `pick`/`concat`, genre filter, CLI `-genre` | `CollectionTitle`, Markov, platform weight |
 | **Identity gen** | `CharacterName`, genre join, `pick`/`concat` | `CompanyName`, Markov |
 | **CLI** | `generate title\|character`, `cmd/forge` | `fetch`, `serve`, `validate`, `list`, export |
 | **HTTP API** | — | Entire `src/httpapi/` package |
@@ -141,7 +141,7 @@ flowchart TB
 ### Wave 2 — Name generation (~50% complete)
 
 5. ~~[FORGE-PACKAGE.md](./FORGE-PACKAGE.md) M1–M4~~ — load, title concat/pick, genre filter, character names
-6. [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) M7 corpus cache; M3b platform weighting; title CLI `-genre`
+6. [FORGE-PACKAGE.md](./FORGE-PACKAGE.md) M7 corpus cache; M3b platform weighting
 7. [NAME-QUALITY.md](./NAME-QUALITY.md) filters before any public API
 8. [CLI-STRUCTURE.md](./CLI-STRUCTURE.md) `fetch` subcommand migration; `validate` / `list`
 9. [OBSERVABILITY.md](./OBSERVABILITY.md) slog + status in metrics/reports

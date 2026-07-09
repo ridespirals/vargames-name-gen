@@ -535,3 +535,135 @@ func TestCount_InvalidResponse(t *testing.T) {
 		t.Fatal("expected error for invalid count response")
 	}
 }
+
+func TestPost_TokenFetchedOnce(t *testing.T) {
+	rt := &pathScriptedRoundTripper{
+		t: t,
+		routes: map[string]scriptedRoute{
+			"/oauth2/token": {
+				// Only one entry: the token endpoint must be hit exactly once across two Posts.
+				statuses: []int{http.StatusOK},
+				bodies:   []string{`{"access_token":"tok-once","expires_in":3600}`},
+			},
+			"/games": {
+				statuses: []int{http.StatusOK, http.StatusOK},
+				bodies:   []string{`[]`, `[]`},
+				checkHeaders: func(req *http.Request, attempt int) {
+					if req.Header.Get("Authorization") != "Bearer tok-once" {
+						t.Fatalf("attempt %d: unexpected Authorization %q", attempt, req.Header.Get("Authorization"))
+					}
+				},
+			},
+		},
+		attempts: make(map[string]int),
+	}
+
+	cfg := config.Config{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		BaseURL:      "https://example.test",
+		AccessToken:  "",
+		MaxLimit:     500,
+	}
+	client := NewClient(cfg, WithRetries(1))
+	client.http.Transport = rt
+
+	ctx := context.Background()
+	if _, err := client.Post(ctx, "games", []byte("fields *;")); err != nil {
+		t.Fatalf("first Post: %v", err)
+	}
+	if _, err := client.Post(ctx, "games", []byte("fields *;")); err != nil {
+		t.Fatalf("second Post: %v", err)
+	}
+
+	if got := rt.attempts["/oauth2/token"]; got != 1 {
+		t.Fatalf("expected token endpoint hit once across two Posts, got %d", got)
+	}
+	if got := rt.attempts["/games"]; got != 2 {
+		t.Fatalf("expected /games hit twice, got %d", got)
+	}
+}
+
+func TestPost_EmptyAccessToken(t *testing.T) {
+	rt := &pathScriptedRoundTripper{
+		t: t,
+		routes: map[string]scriptedRoute{
+			"/oauth2/token": {
+				statuses: []int{http.StatusOK},
+				bodies:   []string{`{"expires_in":3600}`}, // no access_token field
+			},
+		},
+		attempts: make(map[string]int),
+	}
+
+	cfg := config.Config{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		BaseURL:      "https://example.test",
+		AccessToken:  "",
+		MaxLimit:     500,
+	}
+	client := NewClient(cfg, WithRetries(3))
+	client.http.Transport = rt
+
+	_, err := client.Post(context.Background(), "games", []byte("fields *;"))
+	if err == nil {
+		t.Fatal("expected error for empty access_token")
+	}
+	if !strings.Contains(err.Error(), "access_token") {
+		t.Fatalf("expected error to mention access_token, got: %v", err)
+	}
+	if got := rt.attempts["/games"]; got != 0 {
+		t.Fatalf("expected no request to /games when token fetch fails, got %d", got)
+	}
+}
+
+func TestPost_HeadersOnRetry(t *testing.T) {
+	cfg := config.Config{
+		ClientID:     "cid",
+		ClientSecret: "secret",
+		BaseURL:      "https://example.test",
+		AccessToken:  "test-token",
+		MaxLimit:     500,
+	}
+
+	var seen []struct {
+		clientID    string
+		contentType string
+	}
+	rt := &pathScriptedRoundTripper{
+		t: t,
+		routes: map[string]scriptedRoute{
+			"/games": {
+				statuses: []int{http.StatusTooManyRequests, http.StatusOK},
+				bodies:   []string{"rate limited", `[]`},
+				checkHeaders: func(req *http.Request, attempt int) {
+					seen = append(seen, struct {
+						clientID    string
+						contentType string
+					}{req.Header.Get("Client-Id"), req.Header.Get("Content-Type")})
+				},
+			},
+		},
+		attempts: make(map[string]int),
+	}
+
+	client := NewClient(cfg, WithRetries(3), WithBackoff(1*time.Millisecond, 1*time.Millisecond))
+	client.http.Transport = rt
+
+	_, err := client.Post(context.Background(), "games", []byte("fields *;"))
+	if err != nil {
+		t.Fatalf("Post: %v", err)
+	}
+	if len(seen) != 2 {
+		t.Fatalf("expected 2 requests (initial + retry), got %d", len(seen))
+	}
+	for i, h := range seen {
+		if h.clientID != "cid" {
+			t.Errorf("attempt %d: expected Client-Id %q, got %q", i, "cid", h.clientID)
+		}
+		if h.contentType != "text/plain" {
+			t.Errorf("attempt %d: expected Content-Type %q, got %q", i, "text/plain", h.contentType)
+		}
+	}
+}

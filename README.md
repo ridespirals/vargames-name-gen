@@ -17,7 +17,7 @@ Go-based tooling for ingesting data from the Internet Game Database (IGDB) and u
 
 ### What's next
 
-See [planning/README.md](planning/README.md). Top items: HTTP API, `fetch` subcommand migration, NAME-QUALITY filters, title CLI `-genre`, Markov strategy.
+See [planning/README.md](planning/README.md). Top items: HTTP API, `fetch` subcommand migration, NAME-QUALITY filters, Markov strategy.
 
 ---
 
@@ -53,8 +53,8 @@ See [planning/README.md](planning/README.md). Top items: HTTP API, `fetch` subco
 
 - **Name generation (`forge`)**
   - Loads IGDB-shaped JSON from `data/` or `testdata/corpus/`
-  - **Game titles:** `pick` (reservoir sample) or `concat` (splice/mutate fragments); optional genre filter
-  - **Character names:** same strategies; genre filter via character→game→genre join
+  - **Game titles:** `pick` (reservoir sample) or `concat` (splice/mutate fragments); optional genre filter (`-genre`)
+  - **Character names:** same strategies; genre filter via character→game→genre join (`-genre`)
   - Basic quality rejects: length, charset, exact corpus match (`forge.RejectTitle`)
   - Env: `VARGAMES_DATA_DIR` overrides default corpus directory
 
@@ -140,16 +140,17 @@ go run . generate title -strategy=concat -count=3
 # Character names (-genre uses IGDB genre ID from genres.json)
 go run . generate character -seed=42 -count=3 -genre=12
 
+# Title names also accept -genre
+go run . generate title -seed=42 -count=3 -genre=12
+
 # Standalone forge binary (same commands, no "generate" prefix)
-go run ./cmd/forge title -seed=42 -count=5
+go run ./cmd/forge title -genre=12 -seed=42 -count=5
 go run ./cmd/forge character -genre=12 -count=3
 
 # Build forge binary
 go build -o forge ./cmd/forge
 ./forge title -count=3
 ```
-
-**Note:** `-genre` works on `character` today; title genre filter is available in the API (`title.Options.GenreID`) but not yet wired to the title CLI.
 
 #### Fetching entities (requires IGDB credentials)
 

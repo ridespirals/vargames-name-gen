@@ -19,6 +19,7 @@ type TitleConfig struct {
 	Seed     int64
 	Count    int
 	Strategy string
+	GenreID  *int
 }
 
 // IdentityConfig holds options for generating character-style names.
@@ -82,6 +83,7 @@ func GenerateTitles(cfg TitleConfig) ([]string, error) {
 
 	gen := title.New(corpus)
 	opts := title.Options{
+		GenreID:  cfg.GenreID,
 		Strategy: cfg.Strategy,
 		Seed:     cfg.Seed,
 	}
@@ -166,16 +168,23 @@ func runTitleCommand(args []string) error {
 	seed := fs.Int64("seed", 0, "random seed (0 = non-deterministic)")
 	count := fs.Int("count", 1, "number of titles to generate")
 	strategy := fs.String("strategy", "", "generation strategy: concat (default) or pick")
+	genre := fs.Int("genre", 0, "IGDB genre ID to filter source games (0 = all)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	names, err := GenerateTitles(TitleConfig{
+	cfg := TitleConfig{
 		DataDir:  *dataDir,
 		Seed:     *seed,
 		Count:    *count,
 		Strategy: *strategy,
-	})
+	}
+	if *genre > 0 {
+		g := *genre
+		cfg.GenreID = &g
+	}
+
+	names, err := GenerateTitles(cfg)
 	if err != nil {
 		return err
 	}
@@ -196,7 +205,7 @@ func PrintGenerateUsage(w io.Writer) {
 	fmt.Fprintln(w, "  -seed       random seed (0 = random)")
 	fmt.Fprintln(w, "  -count      number of results (default 1)")
 	fmt.Fprintln(w, "  -strategy   concat (default) or pick")
-	fmt.Fprintln(w, "  -genre      IGDB genre ID filter (character only; 0 = all)")
+	fmt.Fprintln(w, "  -genre      IGDB genre ID filter (0 = all)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Environment:")
 	fmt.Fprintf(w, "  %s   default corpus directory\n", EnvDataDir)
@@ -213,7 +222,7 @@ func PrintForgeUsage(w io.Writer) {
 	fmt.Fprintln(w, "  -seed       random seed (0 = random)")
 	fmt.Fprintln(w, "  -count      number of results (default 1)")
 	fmt.Fprintln(w, "  -strategy   concat (default) or pick")
-	fmt.Fprintln(w, "  -genre      IGDB genre ID filter (character only; 0 = all)")
+	fmt.Fprintln(w, "  -genre      IGDB genre ID filter (0 = all)")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "No IGDB credentials required — only local JSON corpus files.")
 }

@@ -39,7 +39,7 @@ This document captures the current intent and design of the project so other dev
 | Sample corpus | **Done** | `testdata/corpus/` (7 JSON files + README) |
 | CI | **Basic** | `go fix` + `go test ./...` on push/PR |
 
-**Next priorities:** title CLI `-genre`, NAME-QUALITY Q1+, `fetch` subcommand migration, HTTP API H1–H4. See [planning/README.md](planning/README.md).
+**Next priorities:** NAME-QUALITY Q1+, `fetch` subcommand migration, HTTP API H1–H4. See [planning/README.md](planning/README.md).
 
 **Language / Tooling**
 
@@ -319,9 +319,7 @@ This document captures the current intent and design of the project so other dev
   - `generate.go` — `RunGenerate`, `RunForge`, `GenerateTitles`, `GenerateIdentities`
   - `flags.go` — `DefaultDataDir()` → `VARGAMES_DATA_DIR`, else `testdata/corpus` (if present), else `data/`
   - Subcommands: `generate title|game`, `generate character|identity`
-  - Title flags: `-data-dir`, `-seed`, `-count`, `-strategy` (`pick`|`concat`)
-  - Character flags: above + `-genre` (IGDB genre ID)
-  - **Gap:** `-genre` not wired for `generate title` (API supports it via `title.Options.GenreID`)
+  - Title and character flags: `-data-dir`, `-seed`, `-count`, `-strategy` (`pick`|`concat`), `-genre` (IGDB genre ID; 0 = all)
   - **Pending:** `fetch.go`, `serve.go`, `validate.go`, `list.go`
 
 - `cmd/forge/main.go` — standalone binary calling `cli.RunForge`; no IGDB credentials ever
@@ -339,7 +337,7 @@ These are **guidelines** meant to keep the project modular and testable.
 
 **Immediate next work (Wave 2):**
 
-1. **Forge polish** — `generate title -genre`, platform weighting (M3b), corpus mtime cache (M7)
+1. **Forge polish** — platform weighting (M3b), corpus mtime cache (M7)
 2. **NAME-QUALITY** — `forge/quality` subpackage (profanity, batch dedup); Q0 already in `RejectTitle`
 3. **CLI-STRUCTURE** — migrate `-fetch` → `fetch` subcommand; add `validate corpus`, `list genres`
 4. **TEST-COVERAGE** — close client gaps (`TestPost_TokenFetchedOnce`, etc.); CI vet/build

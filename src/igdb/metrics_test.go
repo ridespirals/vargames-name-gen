@@ -67,4 +67,3 @@ func TestMetrics_Totals(t *testing.T) {
 		t.Fatalf("expected totalDuration=%v, got %v", 100*time.Millisecond+250*time.Millisecond+50*time.Millisecond, totalDuration)
 	}
 }
-

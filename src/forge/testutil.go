@@ -10,8 +10,8 @@ import (
 func TestCorpusDir(t *testing.T) string {
 	t.Helper()
 	candidates := []string{
-		filepath.Join("..", "..", "testdata", "corpus"),         // src/forge
-		filepath.Join("..", "..", "..", "testdata", "corpus"),   // src/forge/title, identity, ...
+		filepath.Join("..", "..", "testdata", "corpus"),       // src/forge
+		filepath.Join("..", "..", "..", "testdata", "corpus"), // src/forge/title, identity, ...
 	}
 	for _, dir := range candidates {
 		if _, err := os.Stat(filepath.Join(dir, "games.json")); err == nil {

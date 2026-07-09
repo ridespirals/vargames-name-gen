@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,8 +18,8 @@ func TestWriteEntityResultsJSONAt_PartialFilename(t *testing.T) {
 	if err != nil {
 		t.Fatalf("writeEntityResultsJSONAt: %v", err)
 	}
-	if outPath != tmp+"/games.partial.json" {
-		t.Fatalf("got path %q", outPath)
+	if want := filepath.Join(tmp, "games.partial.json"); outPath != want {
+		t.Fatalf("got path %q, want %q", outPath, want)
 	}
 }
 

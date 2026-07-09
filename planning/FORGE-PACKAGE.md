@@ -183,7 +183,7 @@ go run ./cmd/forge character -seed=42 -count=3
 go run ./cmd/forge title -data-dir=data -strategy=concat
 ```
 
-**CLI gap:** `-genre` is wired for `character` but not yet for `generate title` (API supports `title.Options.GenreID`).
+`-genre` is now wired for both `generate title` and `generate character` (both flow through to `title.Options.GenreID` / `identity.Options.GenreID`).
 
 Default corpus: `testdata/corpus` when present, else `data/` (override with `-data-dir` or `VARGAMES_DATA_DIR`).
 

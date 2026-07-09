@@ -18,7 +18,7 @@ Close the README "Client unit tests" checklist, document repo-wide testing conve
 | `forge/title` | [`game_title_test.go`](../src/forge/title/game_title_test.go) | Determinism, genre filter, strategies |
 | `forge/identity` | [`character_name_test.go`](../src/forge/identity/character_name_test.go) | Determinism, genre join |
 | `cli` | [`generate_test.go`](../src/cli/generate_test.go) | Generate determinism, data dir resolution |
-| `main` | [`main_test.go`](../main_test.go) | `writeEntityResultsJSON` |
+| `main` | [`main_test.go`](../main_test.go), [`fetchmeta_test.go`](../fetchmeta_test.go) | `writeEntityResultsJSON`, `writeEntityResultsJSONAt`, `writeFetchMeta`, `formatFetchSummary` |
 
 ### README gap checklist vs reality
 
@@ -26,11 +26,11 @@ Moved from root README — track in this plan only:
 
 | README item | Status |
 |-------------|--------|
-| Token caching: only fetch token once across two `Post` calls | **Gap** — refresh tested, but not "single token fetch across two Posts" |
-| Token error: empty `access_token` | **Gap** |
+| Token caching: only fetch token once across two `Post` calls | **Covered** (`TestPost_TokenFetchedOnce`) |
+| Token error: empty `access_token` | **Covered** (`TestPost_EmptyAccessToken`) |
 | Retry eligibility: 429 → retries → success | **Covered** (`TestPost_RetriesOn429`, `TestPost_RetryThenSuccess`) |
 | Context cancellation mid-retry | **Covered** (`TestPost_ContextCanceled`) |
-| Header correctness: `Content-Type`, `Client-Id` on every call | **Partial** — success test checks headers; not generalized across retries |
+| Header correctness: `Content-Type`, `Client-Id` on every call | **Covered** (`TestPost_HeadersOnRetry`) |
 
 ### CI
 
@@ -81,13 +81,22 @@ testdata/
 - `FetcherClient` interface for fetcher tests (existing)
 - No third-party mock frameworks
 
-## Gap Closure — Client Tests
+### Cross-platform paths
 
-| Test to add | Assertion |
-|-------------|-----------|
-| `TestPost_TokenFetchedOnce` | Two `Post` calls with large `expires_in`; token endpoint hit once |
-| `TestPost_EmptyAccessToken` | Token 200 body without `access_token` → error containing "access_token" |
-| `TestPost_HeadersOnRetry` | 429 then 200; both requests have `Client-Id` and `Content-Type: text/plain` |
+CI runs on `ubuntu-latest` only, but development happens on Windows too. Always build expected
+paths with `filepath.Join` in test assertions — never hardcode `/` (e.g. `tmp+"/x.json"`), since
+that breaks on Windows where `filepath.Join` emits `\`. See the `filepath.Join` fix in
+`TestWriteEntityResultsJSONAt_PartialFilename` (`fetchmeta_test.go`) for the pattern.
+
+## Gap Closure — Client Tests (Done)
+
+| Test | Assertion | Status |
+|------|-----------|--------|
+| `TestPost_TokenFetchedOnce` | Two `Post` calls with large `expires_in`; token endpoint hit once | Done |
+| `TestPost_EmptyAccessToken` | Token 200 body without `access_token` → error containing "access_token" | Done |
+| `TestPost_HeadersOnRetry` | 429 then 200; both requests have `Client-Id` and `Content-Type: text/plain` | Done |
+
+All three now live in `src/igdb/client_test.go`.
 
 ## Coverage Targets (aspirational)
 
@@ -127,16 +136,16 @@ Measure with `go test -coverprofile=coverage.out ./...`.
 
 ## Milestones
 
-| Milestone | Deliverable | Effort |
-|-----------|-------------|--------|
-| T1 | Audit doc (this plan) + README checklist updated | ~0.25 day |
-| T2 | Client gap tests (token-once, empty token, headers on retry) | ~0.5 day |
+| Milestone | Deliverable | Effort | Status |
+|-----------|-------------|--------|--------|
+| T1 | Audit doc (this plan) + README checklist updated | ~0.25 day | **Done** |
+| T2 | Client gap tests (token-once, empty token, headers on retry) | ~0.5 day | **Done** |
 | T3 | `testdata/corpus` wired into forge tests | ~0.25 day | **Done** (SAMPLE-CORPUS S4) |
-| T4 | httpapi httptest suite | ~0.5 day (with HTTP-API H2) |
-| T5 | CI: vet + build + coverage artifact | ~0.5 day (CI-INFRA C1) |
-| T6 | Race detector on `igdb` after concurrent fetch | ~0.25 day |
+| T4 | httpapi httptest suite | ~0.5 day (with HTTP-API H2) | Pending |
+| T5 | CI: vet + build + coverage artifact | ~0.5 day (CI-INFRA C1) | Pending |
+| T6 | Race detector on `igdb` after concurrent fetch | ~0.25 day | Pending |
 
-**Total estimate:** ~2–2.5 days (T1–T2 immediate; rest tied to feature landings).
+**Total estimate:** ~2–2.5 days (T1–T2 done; rest tied to feature landings).
 
 ## Open Decisions
 
